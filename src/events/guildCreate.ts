@@ -1,8 +1,22 @@
 import { Guild, EmbedBuilder, ChannelType, PermissionsBitField, AuditLogEvent } from "discord.js";
 import { logger } from "../utils/logger";
 import { guild_config } from "../utils/database";
-import { getLocale, t, resolveLocaleKey } from "../i18n";
+import { getLocale, t, resolveLocaleKey, LocaleStrings } from "../i18n";
 import packageJson from "../../package.json";
+import { diagnoseAndConfigurePermissions } from "../utils/permissions";
+
+function translatePermission(perm: string, L: LocaleStrings): string {
+  switch (perm) {
+    case "ModerateMembers": return L.permTimeoutMembers;
+    case "KickMembers": return L.permKickMembers;
+    case "BanMembers": return L.permBanMembers;
+    case "ViewChannel": return L.permViewChannel;
+    case "SendMessages": return L.permSendMessages;
+    case "ManageMessages": return L.permManageMessages;
+    case "ReadMessageHistory": return L.permReadMessageHistory;
+    default: return perm;
+  }
+}
 
 export async function onGuildCreate(guild: Guild) {
   let inviterTag = "Unknown User";
@@ -45,15 +59,23 @@ export async function onGuildCreate(guild: Guild) {
   const localeKey = resolveLocaleKey(config.language, guild.preferredLocale);
   const L = getLocale(config.language, guild.preferredLocale);
 
+  // Run the diagnostic and auto-repair logic immediately
+  const checkResult = await diagnoseAndConfigurePermissions(guild);
+
   // Find a suitable channel to send the onboarding message
   let targetChannel = guild.systemChannel;
 
-  if (!targetChannel || !targetChannel.permissionsFor(guild.members.me!)?.has(PermissionsBitField.Flags.SendMessages)) {
+  if (
+    !targetChannel || 
+    !targetChannel.permissionsFor(guild.members.me!)?.has(PermissionsBitField.Flags.ViewChannel) ||
+    !targetChannel.permissionsFor(guild.members.me!)?.has(PermissionsBitField.Flags.SendMessages)
+  ) {
     // If system channel is not writable, look for the first writable text channel
-    targetChannel = guild.channels.cache.find((channel) =>
-      channel.type === ChannelType.GuildText &&
-      channel.permissionsFor(guild.members.me!)?.has(PermissionsBitField.Flags.SendMessages)
-    ) as any;
+    targetChannel = guild.channels.cache.find((channel) => {
+      if (channel.type !== ChannelType.GuildText) return false;
+      const perms = channel.permissionsFor(guild.members.me!);
+      return perms?.has(PermissionsBitField.Flags.ViewChannel) && perms?.has(PermissionsBitField.Flags.SendMessages);
+    }) as any;
   }
 
   if (!targetChannel) {
@@ -66,29 +88,62 @@ export async function onGuildCreate(guild: Guild) {
       ? (localeKey === "ko" ? `, <@${inviterId}>님` : `, <@${inviterId}>`) 
       : "";
 
+    const configCmd = guild.client.application?.commands.cache.find(c => c.name === "config");
+    const configMention = configCmd ? `</config:${configCmd.id}>` : "`/config`";
+
     const onboardEmbed = new EmbedBuilder()
       .setColor(0x5865f2) // Discord Blurple
       .setTitle(L.onboardTitle)
       .setDescription(t(L.onboardDescription, inviterMention))
       .addFields(
-        {
-          name: L.onboardStep1Title,
-          value: L.onboardStep1Value,
-        },
-        {
-          name: L.onboardStep2Title,
-          value: L.onboardStep2Value,
-        },
-        {
-          name: L.onboardStep3Title,
-          value: L.onboardStep3Value,
-        },
-        {
-          name: L.onboardStep4Title,
-          value: L.onboardStep4Value,
-        }
+        { name: L.onboardStep1Title, value: L.onboardStep1Value.replace(/`\/config`/g, configMention) },
+        { name: L.onboardStep2Title, value: L.onboardStep2Value.replace(/`\/config`/g, configMention) },
+        { name: L.onboardStep3Title, value: L.onboardStep3Value.replace(/`\/config`/g, configMention) },
+        { name: L.onboardStep4Title, value: L.onboardStep4Value }
       )
       .setFooter({ text: t(L.onboardFooter, packageJson.version) });
+
+    if (checkResult.allOk && !checkResult.autoFixed) {
+       let msg = L.onboardCheckNoMissing;
+       if (checkResult.hasAdmin) msg += "\n\n" + L.onboardCheckHasAdminTip;
+       onboardEmbed.addFields({ name: L.onboardCheckTitle, value: msg });
+    } else if (checkResult.autoFixed) {
+       const visibleFixed = checkResult.fixedChannels.filter(c => !c.isHidden).map(c => `• <#${c.id}>`);
+       const hiddenFixedCount = checkResult.fixedChannels.filter(c => c.isHidden).length;
+       if (hiddenFixedCount > 0) visibleFixed.push(`• ${hiddenFixedCount} ${L.onboardCheckHiddenChannels}`);
+       let msg = t(L.onboardCheckMissingFixedAdmin, visibleFixed.join("\n"));
+       if (checkResult.hasAdmin && checkResult.missingGlobal.length === 0) msg += "\n\n" + L.onboardCheckHasAdminTip;
+       onboardEmbed.addFields({ name: L.onboardCheckTitle, value: msg });
+       
+       if (checkResult.missingGlobal.length > 0) {
+         const globalList = checkResult.missingGlobal.map(m => `• **${translatePermission(m, L)}**`).join("\n");
+         onboardEmbed.addFields({ name: L.onboardCheckGlobalTitle, value: t(L.onboardCheckMissingGlobal, globalList) });
+       }
+       
+       if (checkResult.missingChannels.length > 0) {
+         const visibleMissing = checkResult.missingChannels.filter(c => !c.isHidden).map(m => `• <#${m.id}>: ${m.missing.map(p => translatePermission(p, L)).join(", ")}`);
+         const hiddenMissingCount = checkResult.missingChannels.filter(c => c.isHidden).length;
+         if (hiddenMissingCount > 0) visibleMissing.push(`• ${hiddenMissingCount} ${L.onboardCheckHiddenChannels}`);
+         onboardEmbed.addFields({ name: L.onboardCheckPartialTitle, value: t(L.onboardCheckPartialDesc, visibleMissing.join("\n")) });
+       }
+    } else {
+       const onboardingCmd = guild.client.application?.commands.cache.find(c => c.name === "onboarding");
+       const cmdMention = onboardingCmd ? `</onboarding:${onboardingCmd.id}>` : "`/onboarding`";
+       const missingTip = L.onboardCheckMissingTip.replace(/`\/onboarding`/g, cmdMention);
+
+       if (checkResult.missingGlobal.length > 0) {
+         const globalList = checkResult.missingGlobal.map(m => `• **${translatePermission(m, L)}**`).join("\n");
+         onboardEmbed.addFields({ name: L.onboardCheckGlobalTitle, value: t(L.onboardCheckMissingGlobal, globalList) });
+       }
+       if (checkResult.missingChannels.length > 0) {
+         const visibleMissing = checkResult.missingChannels.filter(c => !c.isHidden).map(m => `• <#${m.id}>: ${m.missing.map(p => translatePermission(p, L)).join(", ")}`);
+         const hiddenMissingCount = checkResult.missingChannels.filter(c => c.isHidden).length;
+         if (hiddenMissingCount > 0) visibleMissing.push(`• ${hiddenMissingCount} ${L.onboardCheckHiddenChannels}`);
+         onboardEmbed.addFields({ name: L.onboardCheckTitle, value: t(L.onboardCheckMissingReport, visibleMissing.join("\n")) + missingTip });
+       } else {
+         onboardEmbed.addFields({ name: L.onboardCheckTitle, value: L.onboardCheckFixGlobalTip });
+       }
+    }
 
     await targetChannel.send({ embeds: [onboardEmbed] });
     logger.success(`Successfully sent onboarding message to ${guild.name} in #${targetChannel.name}`, "CLIENT");

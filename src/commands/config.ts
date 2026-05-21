@@ -26,11 +26,17 @@ import { logger } from "../utils/logger";
 import { getLocale, t, getLanguageDisplayName, LocaleStrings } from "../i18n";
 import packageJson from "../../package.json";
 
+import { enUS } from "../i18n/locales/en-US";
+import { ko } from "../i18n/locales/ko";
+
 // ─── Slash Command (no subcommands) ──────────────────────────────────────────
 
 export const configCommand = new SlashCommandBuilder()
   .setName("config")
-  .setDescription("Open the interactive scam scanner configuration panel")
+  .setDescription(enUS.configCommandDesc)
+  .setDescriptionLocalizations({
+    ko: ko.configCommandDesc
+  })
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
 // ─── Formatting Helpers ──────────────────────────────────────────────────────

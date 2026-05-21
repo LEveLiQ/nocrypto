@@ -8,6 +8,7 @@ export interface LocaleStrings {
   systemPrompt: string; // Full system prompt for this locale (includes confidence threshold placeholder %s)
 
   // ── Config Dashboard ──────────────────────────────────────────────────
+  configCommandDesc: string;
   configTitle: string;
   configFooter: string;  // %s = version
   configFieldLogChannel: string;
@@ -99,7 +100,29 @@ export interface LocaleStrings {
   onboardStep3Value: string;
   onboardStep4Title: string;
   onboardStep4Value: string;
+  onboardCommandDesc: string;
+  onboardCheckTitle: string;
+  onboardCheckNoMissing: string;
+  onboardCheckMissingFixedAdmin: string; // %s = channelsList
+  onboardCheckMissingReport: string;     // %s = channelsList
+  onboardCheckMissingTip: string;
+  onboardCheckMissingGlobal: string;     // %s = globalList
+  onboardCheckHasAdminTip: string;
   onboardFooter: string; // %s = version
+  onboardCheckGlobalTitle: string;
+  onboardCheckPartialTitle: string;
+  onboardCheckPartialDesc: string; // %s = missingList
+  onboardCheckFixGlobalTip: string;
+  onboardCheckHiddenChannels: string; // e.g. "Hidden channels"
+
+  // ── Permission Names ──────────────────────────────────────────────────
+  permTimeoutMembers: string;
+  permKickMembers: string;
+  permBanMembers: string;
+  permViewChannel: string;
+  permSendMessages: string;
+  permManageMessages: string;
+  permReadMessageHistory: string;
 
   // ── In-Channel Scam Warning ───────────────────────────────────────────
   warnTitleSingle: string;
@@ -157,6 +180,7 @@ export interface LocaleStrings {
   logClassificationManualSuffix: string; // " (Manual Report + Threat Sweep)"
 
   // ── Report command ephemeral replies ──────────────────────────────────
+  reportCommandName: string;
   reportCooldownActive: string;     // %s = minutesLeft
   reportScamDetected: string;       // %s = username, %s = confidence%, %s = reason
   reportSweepSuffix: string;        // %s = deletedCount

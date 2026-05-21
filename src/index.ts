@@ -12,6 +12,7 @@ import { onMessageCreate } from "./events/messageCreate";
 import { onGuildCreate } from "./events/guildCreate";
 import { handleConfigCommand, handleConfigButton, handleConfigSelect, handleConfigModal } from "./commands/config";
 import { handleReportCommand } from "./commands/report";
+import { handleOnboardingCommand } from "./commands/onboarding";
 import { MessageContextMenuCommandInteraction } from "discord.js";
 
 // Load environment variables
@@ -59,6 +60,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     switch (commandName) {
       case "config":
         await handleConfigCommand(interaction as ChatInputCommandInteraction);
+        break;
+      case "onboarding":
+        await handleOnboardingCommand(interaction as ChatInputCommandInteraction);
         break;
     }
   } else if (interaction.isMessageContextMenuCommand()) {

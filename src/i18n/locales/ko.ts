@@ -43,7 +43,8 @@ export const ko: LocaleStrings = {
   "reason": string // 신고 이유(예: "dlscord.com으로 위장한 가짜 Nitro 링크 포함") 또는 안전한 이유를 한국어로 1-2문장으로 간결하게 설명
 }`,
 
-  // ── 설정 대시보드 ─────────────────────────────────────────────────────
+  // ── Config Dashboard ──────────────────────────────────────────────────
+  configCommandDesc: "스팸 탐지기 설정 패널을 엽니다",
   configTitle: "⚙️ 스팸 탐지기 — 서버 설정",
   configFooter: "Made with ❤️ by LEveLiQ | NoCrypto v%s",
   configFieldLogChannel: "로그 채널",
@@ -135,7 +136,29 @@ export const ko: LocaleStrings = {
   onboardStep3Value: "`/config`의 **처벌** 섹션에서 스팸 감지 시 조치를 설정하세요:\n• 단일 위반: 삭제만 또는 1시간 타임아웃\n• 스팸봇 모드: 24시간 타임아웃, 추방, 또는 차단\n• 스팸봇 감지 기준 횟수: 스팸봇 모드 발동에 필요한 연속 위반 횟수",
   onboardStep4Title: "⚠️ 4. 역할 계층 확인",
   onboardStep4Value: "타임아웃, 추방, 차단을 실행하려면 **서버 설정 -> 역할**에서 봇 역할을 일반 멤버 역할 **위로** 끌어 올려주세요.",
+  onboardCommandDesc: "채널 권한을 확인하고 자동으로 올바르게 설정합니다",
+  onboardCheckTitle: "\n\n🛡️ 권한 진단 보고서",
+  onboardCheckNoMissing: "✅ 모든 권한이 올바르게 설정되었습니다!\n모든 텍스트 채널에 대한 필수 권한(`채널 보기`, `메시지 보내기`, `메시지 관리`, `메시지 기록 보기`) 및 글로벌 관리 권한(`타임아웃`, `추방`, `차단`)을 모두 보유하고 있습니다.",
+  onboardCheckMissingFixedAdmin: "✅ 자동 설정 완료!\n다음 채널에서 `채널 보기`, `메시지 보내기`, `메시지 관리`, `메시지 기록 보기` 권한을 보유하도록 맞춤형 권한 재설정을 구성했습니다:\n%s",
+  onboardCheckMissingReport: "⚠️ 권한 누락 감지\n봇이 다음 채널에서 필수 권한을 보유하고 있지 않습니다:\n%s",
+  onboardCheckMissingTip: "\n\n💡 **팁:** 이 문제를 자동으로 해결하려면 서버 설정에서 **봇에게 임시로 `관리자` 권한을 부여**한 후 `/onboarding` 명령어를 다시 실행하세요!",
+  onboardCheckMissingGlobal: "서버 설정 -> 역할에서 봇에게 다음 권한이 누락되었습니다. 스팸봇에 처벌을 부여하려면 이 권한들이 반드시 필요합니다:\n%s",
+  onboardCheckHasAdminTip: "🛡️ **팁:** 현재 봇에게 **`관리자`** 권한이 부여되어 있습니다. 이제 모든 채널 및 글로벌 권한이 올바르게 설정되었으므로, **서버 설정에서 봇의 `관리자` 권한을 안전하게 제거하셔도 됩니다.**",
   onboardFooter: "Made with ❤️ by LEveLiQ | v%s",
+  onboardCheckGlobalTitle: "🚨 글로벌 권한",
+  onboardCheckPartialTitle: "⚠️ 일부 자동 설정 실패",
+  onboardCheckPartialDesc: "다음 채널의 권한을 자동으로 설정하지 못했습니다:\n%s",
+  onboardCheckFixGlobalTip: "⚠️ 서버 설정 -> 역할에서 글로벌 권한을 수정해 주세요.",
+  onboardCheckHiddenChannels: "비공개 채널",
+
+  // ── Permission Names ──────────────────────────────────────────────────
+  permTimeoutMembers: "멤버 타임아웃",
+  permKickMembers: "멤버 추방",
+  permBanMembers: "멤버 차단",
+  permViewChannel: "채널 보기",
+  permSendMessages: "메시지 보내기",
+  permManageMessages: "메시지 관리",
+  permReadMessageHistory: "메시지 기록 보기",
 
   // ── 채널 내 스팸 경고 ──────────────────────────────────────────────────
   warnTitleSingle: "⚠️ 스팸/악성 콘텐츠 감지",
@@ -158,9 +181,9 @@ export const ko: LocaleStrings = {
   punishResultBanned: "⛔ 차단됨",
   punishResultSkippedRoleHierarchy: "⚠️ 건너뜀 (사용자의 역할이 너무 높음)",
   punishResultSkippedOwner: "⚠️ 건너뜀 (서버 소유자)",
-  punishResultMissingModerate: "❌ ModerateMembers 권한 없음",
-  punishResultMissingKick: "❌ KickMembers 권한 없음",
-  punishResultMissingBan: "❌ BanMembers 권한 없음",
+  punishResultMissingModerate: "❌ 멤버 타임아웃 권한 없음",
+  punishResultMissingKick: "❌ 멤버 추방 권한 없음",
+  punishResultMissingBan: "❌ 멤버 차단 권한 없음",
   punishResultFailed: "❌ 실패 (%s)",
   punishResultNone: "없음",
   punishResultBotNotFound: "❌ 서버에서 봇 멤버를 찾을 수 없음",
@@ -192,8 +215,9 @@ export const ko: LocaleStrings = {
   logStatusFailed: "삭제 실패 / 권한 없음",
   logClassificationManualSuffix: " (수동 신고 + 소급 검사)",
 
-  // ── 신고 명령어 임시 응답 ──────────────────────────────────────────────
-  reportCooldownActive: "⏱️ **서버 쿨다운 활성 중:** API 할당량 보호를 위해 일반 멤버의 수동 스팸 신고는 시간당 1회로 제한됩니다. **%s분** 후에 다시 시도하세요.\n*(서버 관리자 및 모더레이터는 쿨다운이 적용되지 않습니다)*",
+  // ── Report command ephemeral replies ──────────────────────────────────
+  reportCommandName: "NoCrypto에 신고하기",
+  reportCooldownActive: "⏱️ **서버 쿨다운 활성화:** API 할당량 보호를 위해 일반 멤버의 수동 스팸 신고는 1시간에 1회로 제한됩니다. **%s분** 후에 다시 시도해주세요.\n*(서버 관리자 및 모더레이터는 이 제한의 영향을 받지 않습니다)*",
   reportScamDetected: "⚠️ **스팸 감지!**\n**%s** 님의 메시지가 **%s%%** 신뢰도로 스팸으로 판정되어 자동으로 삭제되었습니다.%s\n\n**사유:** *%s*",
   reportSweepSuffix: "\n\n🧹 **소급 위협 검사:** 활성 서버 채널을 검사하여 **%s**개의 다른 스팸 메시지를 삭제했습니다.",
   reportSafeResult: "✅ **스팸/악성 콘텐츠 미감지**\n신고된 메시지를 분석한 결과 안전한 것으로 판단됩니다.\n\n**안전 신뢰도:** **%s%** 안전.\n**분석 사유:** *%s*",

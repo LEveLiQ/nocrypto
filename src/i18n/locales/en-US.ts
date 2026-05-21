@@ -39,6 +39,7 @@ You must respond in strict JSON format matching this exact schema:
 }`,
 
   // ── Config Dashboard ──────────────────────────────────────────────────
+  configCommandDesc: "Open the interactive scam scanner configuration panel",
   configTitle: "⚙️ Scam Scanner — Server Configuration",
   configFooter: "Made with ❤️ by LEveLiQ | NoCrypto v%s",
   configFieldLogChannel: "Log Channel",
@@ -130,7 +131,29 @@ You must respond in strict JSON format matching this exact schema:
   onboardStep3Value: "Customize what happens when scams are flagged from the **Punishments** section in `/config`:\n• Single infraction: delete-only or 1-hour timeout\n• Spambot mode: 24h timeout, kick, or ban for active spambots\n• Spam threshold: number of fast infractions to trigger spambot mode",
   onboardStep4Title: "⚠️ 4. Role Hierarchy Check",
   onboardStep4Value: "To allow me to execute timeouts, kicks, or bans, please go to **Server Settings -> Roles** and drag my bot role **above** your standard member roles.",
+  onboardCommandDesc: "Check and automatically configure channel permissions",
+  onboardCheckTitle: "\n\n🛡️ Permission Diagnosis Report",
+  onboardCheckNoMissing: "✅ All permissions are correctly configured!\nI have all necessary channel access (`View Channel`, `Send Messages`, `Manage Messages`, `Read Message History`), as well as global moderation permissions (`Timeout`, `Kick`, `Ban`).",
+  onboardCheckMissingFixedAdmin: "✅ Auto-Configuration Completed!\nI have configured custom overrides in the following channels to ensure I have `View Channel`, `Send Messages`, `Manage Messages`, and `Read Message History` access:\n%s",
+  onboardCheckMissingReport: "⚠️ Missing Permissions Detected\nI am missing critical permissions in the following channels:\n%s",
+  onboardCheckMissingTip: "\n\n💡 **Tip:** To fix these automatically, **temporarily grant the bot the `Administrator` permission** in Server Settings and run `/onboarding` again!",
+  onboardCheckMissingGlobal: "The bot role is missing the following global permissions in Server Settings -> Roles. These are required to punish scammers:\n%s",
+  onboardCheckHasAdminTip: "🛡️ **Tip:** I noticed I currently hold the **`Administrator`** permission. Since my permissions are now fully configured, **you can safely remove `Administrator` from my role in Server Settings!**",
   onboardFooter: "Made with ❤️ by LEveLiQ | v%s",
+  onboardCheckGlobalTitle: "\n\n🚨 Global Permissions",
+  onboardCheckPartialTitle: "⚠️ Partially Failed",
+  onboardCheckPartialDesc: "Could not auto-configure the following channels:\n%s",
+  onboardCheckFixGlobalTip: "⚠️ Please fix the global permissions in Server Settings -> Roles.",
+  onboardCheckHiddenChannels: "Hidden channels",
+
+  // ── Permission Names ──────────────────────────────────────────────────
+  permTimeoutMembers: "Timeout Members",
+  permKickMembers: "Kick Members",
+  permBanMembers: "Ban Members",
+  permViewChannel: "View Channel",
+  permSendMessages: "Send Messages",
+  permManageMessages: "Manage Messages",
+  permReadMessageHistory: "Read Message History",
 
   // ── In-Channel Scam Warning ───────────────────────────────────────────
   warnTitleSingle: "⚠️ Scam / Malicious Content Detected",
@@ -188,6 +211,7 @@ You must respond in strict JSON format matching this exact schema:
   logClassificationManualSuffix: " (Manual Report + Threat Sweep)",
 
   // ── Report command ephemeral replies ──────────────────────────────────
+  reportCommandName: "Report to NoCrypto",
   reportCooldownActive: "⏱️ **Server Cooldown Active:** To protect API quotas, manual scam reporting is limited to once per hour for regular members. Try again in **%s minute%s**.\n*(Server Administrators and Moderators bypass this cooldown)*",
   reportScamDetected: "⚠️ **Scam Detected!**\nThe message from **%s** was flagged as a scam with **%s%%** confidence and has been automatically removed.%s\n\n**Reason:** *%s*",
   reportSweepSuffix: "\n\n🧹 **Retroactive Threat Sweep:** Successfully scanned active server channels and purged **%s** other copies of this scam!",

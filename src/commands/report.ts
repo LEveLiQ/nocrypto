@@ -24,9 +24,15 @@ import {
 import packageJson from "../../package.json";
 import * as crypto from "crypto";
 
+import { enUS } from "../i18n/locales/en-US";
+import { ko } from "../i18n/locales/ko";
+
 // Define the "Report to NoCrypto" message context command
 export const reportCommand = new ContextMenuCommandBuilder()
-  .setName("Report to NoCrypto")
+  .setName(enUS.reportCommandName)
+  .setNameLocalizations({
+    ko: ko.reportCommandName
+  })
   .setType(ApplicationCommandType.Message);
 
 // Tracking report cooldowns per server
