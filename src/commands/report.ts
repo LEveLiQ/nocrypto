@@ -42,7 +42,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
     const L = getLocale("auto", null, interaction.locale);
     await interaction.reply({
       content: L.errorNotInServer,
-      ephemeral: true,
+      flags: ["Ephemeral"],
     });
     return;
   }
@@ -63,7 +63,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
     const pluralSuffix = minutesLeft === 1 ? "" : "s";
     await interaction.reply({
       content: t(L.reportCooldownActive, String(minutesLeft), pluralSuffix),
-      ephemeral: true,
+      flags: ["Ephemeral"],
     });
     return;
   }
@@ -74,7 +74,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
   }
 
   // Defer the reply ephemerally to give Gemini enough time to process
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: ["Ephemeral"] });
 
   const targetMessage = interaction.targetMessage;
   const content = targetMessage.content || "";
