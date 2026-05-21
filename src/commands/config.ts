@@ -1,13 +1,37 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  ButtonInteraction,
+  ModalSubmitInteraction,
   EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  ChannelSelectMenuBuilder,
+  RoleSelectMenuBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   PermissionFlagsBits,
   ChannelType,
+  ComponentType,
+  type MessageActionRowComponentBuilder,
+  type AnySelectMenuInteraction,
 } from "discord.js";
-import { guild_config, PunishmentSingle, PunishmentSpam } from "../utils/database";
+import { guild_config, GuildConfig, PunishmentSingle, PunishmentSpam } from "../utils/database";
 import { logger } from "../utils/logger";
 import packageJson from "../../package.json";
+
+// ─── Slash Command (no subcommands) ──────────────────────────────────────────
+
+export const configCommand = new SlashCommandBuilder()
+  .setName("config")
+  .setDescription("Open the interactive scam scanner configuration panel")
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+
+// ─── Formatting Helpers ──────────────────────────────────────────────────────
 
 function formatPunishment(action: string, tier: "single" | "spam"): string {
   const labels: Record<string, string> = {
@@ -19,415 +43,703 @@ function formatPunishment(action: string, tier: "single" | "spam"): string {
   return labels[action] || action;
 }
 
-export const configCommand = new SlashCommandBuilder()
-  .setName("config")
-  .setDescription("Configure the scam scanner for this server")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-  .addSubcommand((sub) =>
-    sub
-      .setName("view")
-      .setDescription("View the current scanner configuration")
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("logchannel")
-      .setDescription("Set the channel where scam alerts are logged")
-      .addChannelOption((opt) =>
-        opt
-          .setName("channel")
-          .setDescription("The text channel for scam alert logs")
-          .addChannelTypes(ChannelType.GuildText)
-          .setRequired(true)
-      )
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("scan-images")
-      .setDescription("Toggle image scanning on or off")
-      .addBooleanOption((opt) =>
-        opt
-          .setName("enabled")
-          .setDescription("Enable or disable image scanning")
-          .setRequired(true)
-      )
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("scan-links")
-      .setDescription("Toggle link scanning on or off")
-      .addBooleanOption((opt) =>
-        opt
-          .setName("enabled")
-          .setDescription("Enable or disable link scanning")
-          .setRequired(true)
-      )
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("threshold")
-      .setDescription("Set the minimum confidence threshold for flagging scams")
-      .addNumberOption((opt) =>
-        opt
-          .setName("value")
-          .setDescription("Confidence threshold (0.50 - 1.00)")
-          .setRequired(true)
-          .setMinValue(0.50)
-          .setMaxValue(1.00)
-      )
-  )
-  .addSubcommandGroup((group) =>
-    group
-      .setName("exclude-channel")
-      .setDescription("Manage channels excluded from scanning")
-      .addSubcommand((sub) =>
-        sub
-          .setName("add")
-          .setDescription("Exclude a channel from scanning")
-          .addChannelOption((opt) =>
-            opt
-              .setName("channel")
-              .setDescription("Channel to exclude")
-              .addChannelTypes(ChannelType.GuildText)
-              .setRequired(true)
-          )
-      )
-      .addSubcommand((sub) =>
-        sub
-          .setName("remove")
-          .setDescription("Re-enable scanning in a previously excluded channel")
-          .addChannelOption((opt) =>
-            opt
-              .setName("channel")
-              .setDescription("Channel to remove from exclusion list")
-              .addChannelTypes(ChannelType.GuildText)
-              .setRequired(true)
-          )
-      )
-  )
-  .addSubcommandGroup((group) =>
-    group
-      .setName("exclude-role")
-      .setDescription("Manage roles excluded from scanning")
-      .addSubcommand((sub) =>
-        sub
-          .setName("add")
-          .setDescription("Exclude users with a role from scanning")
-          .addRoleOption((opt) =>
-            opt
-              .setName("role")
-              .setDescription("Role to exclude")
-              .setRequired(true)
-          )
-      )
-      .addSubcommand((sub) =>
-        sub
-          .setName("remove")
-          .setDescription("Re-enable scanning for a previously excluded role")
-          .addRoleOption((opt) =>
-            opt
-              .setName("role")
-              .setDescription("Role to remove from exclusion list")
-              .setRequired(true)
-          )
-      )
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("reset")
-      .setDescription("Reset all settings to defaults")
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("punishment-single")
-      .setDescription("Set the punishment for a single scam infraction")
-      .addStringOption((opt) =>
-        opt
-          .setName("action")
-          .setDescription("What to do when a user sends a single scam")
-          .setRequired(true)
-          .addChoices(
-            { name: "None (Delete message only)", value: "none" },
-            { name: "Timeout 1 Hour", value: "timeout" }
-          )
-      )
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("punishment-spam")
-      .setDescription("Set the punishment for detected spambots / multi-channel spammers")
-      .addStringOption((opt) =>
-        opt
-          .setName("action")
-          .setDescription("What to do when a user is classified as a spambot")
-          .setRequired(true)
-          .addChoices(
-            { name: "Timeout 24 Hours", value: "timeout" },
-            { name: "Kick Member", value: "kick" },
-            { name: "Ban Member", value: "ban" }
-          )
-      )
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("spam-threshold")
-      .setDescription("Infractions limit in 5m before classification as spambot (0 to disable)")
-      .addIntegerOption((opt) =>
-        opt
-          .setName("value")
-          .setDescription("Number of infractions (e.g. 3, set to 0 to disable)")
-          .setRequired(true)
-          .setMinValue(0)
-      )
+// ─── Dashboard Embed ─────────────────────────────────────────────────────────
+
+function buildDashboardEmbed(
+  config: GuildConfig,
+  guildId: string,
+  categoryDescription?: string
+): EmbedBuilder {
+  const excludedChannels: string[] = JSON.parse(config.excluded_channels);
+  const excludedRoles: string[] = JSON.parse(config.excluded_roles);
+
+  const embed = new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle("⚙️ Scam Scanner — Server Configuration")
+    .addFields(
+      {
+        name: "Log Channel",
+        value: config.log_channel_id ? `<#${config.log_channel_id}>` : "Not set",
+        inline: true,
+      },
+      {
+        name: "Scan Images",
+        value: config.scan_images ? "✅ Enabled" : "❌ Disabled",
+        inline: true,
+      },
+      {
+        name: "Scan Links",
+        value: config.scan_links ? "✅ Enabled" : "❌ Disabled",
+        inline: true,
+      },
+      {
+        name: "Confidence Threshold",
+        value: `${(config.confidence_threshold * 100).toFixed(0)}%`,
+        inline: true,
+      },
+      {
+        name: "Single Infraction",
+        value: formatPunishment(config.punishment_single, "single"),
+        inline: true,
+      },
+      {
+        name: "Spambot Punishment",
+        value: formatPunishment(config.punishment_spam, "spam"),
+        inline: true,
+      },
+      {
+        name: "Spambot Threshold",
+        value: config.spam_threshold > 0
+          ? `⚠️ ${config.spam_threshold} Infractions`
+          : "🟢 Disabled (Single Only)",
+        inline: true,
+      },
+      {
+        name: "Excluded Channels",
+        value: excludedChannels.length > 0
+          ? excludedChannels.map((id) => `<#${id}>`).join(", ")
+          : "None",
+        inline: false,
+      },
+      {
+        name: "Excluded Roles",
+        value: excludedRoles.length > 0
+          ? excludedRoles.map((id) => `<@&${id}>`).join(", ")
+          : "None",
+        inline: false,
+      }
+    )
+    .setFooter({ text: `Made with ❤️ by LEveLiQ | NoCrypto v${packageJson.version}` });
+
+  if (categoryDescription) {
+    embed.setDescription(categoryDescription);
+  }
+
+  return embed;
+}
+
+// ─── Component Builders ──────────────────────────────────────────────────────
+
+function buildHomeComponents(
+  guildId: string
+): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
+  const row = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`cfg:${guildId}:cat:general`)
+      .setLabel("General")
+      .setEmoji("⚙️")
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`cfg:${guildId}:cat:punishments`)
+      .setLabel("Punishments")
+      .setEmoji("⚔️")
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`cfg:${guildId}:cat:exclusions`)
+      .setLabel("Exclusions")
+      .setEmoji("🚫")
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`cfg:${guildId}:cat:reset`)
+      .setLabel("Reset All")
+      .setEmoji("🔄")
+      .setStyle(ButtonStyle.Danger),
   );
 
+  return [row];
+}
+
+function buildGeneralComponents(
+  guildId: string,
+  config: GuildConfig
+): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
+  const rows: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+
+  // Row 1: Channel select menu for log channel
+  rows.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new ChannelSelectMenuBuilder()
+        .setCustomId(`cfg:${guildId}:channel_select:log`)
+        .setPlaceholder("Select a log channel...")
+        .setChannelTypes(ChannelType.GuildText)
+        .setMinValues(1)
+        .setMaxValues(1)
+    )
+  );
+
+  // Row 2: Clear log channel + toggle buttons
+  rows.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`cfg:${guildId}:clear:log`)
+        .setLabel("Clear Log Channel")
+        .setEmoji("🗑️")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(!config.log_channel_id),
+      new ButtonBuilder()
+        .setCustomId(`cfg:${guildId}:toggle:scan_images`)
+        .setLabel(`Scan Images: ${config.scan_images ? "ON" : "OFF"}`)
+        .setEmoji("🖼️")
+        .setStyle(config.scan_images ? ButtonStyle.Success : ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`cfg:${guildId}:toggle:scan_links`)
+        .setLabel(`Scan Links: ${config.scan_links ? "ON" : "OFF"}`)
+        .setEmoji("🔗")
+        .setStyle(config.scan_links ? ButtonStyle.Success : ButtonStyle.Secondary),
+    )
+  );
+
+  // Row 3: Threshold + Back
+  rows.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`cfg:${guildId}:modal_open:threshold`)
+        .setLabel(`Threshold: ${(config.confidence_threshold * 100).toFixed(0)}%`)
+        .setEmoji("🎯")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`cfg:${guildId}:home`)
+        .setLabel("Back")
+        .setEmoji("◀️")
+        .setStyle(ButtonStyle.Secondary),
+    )
+  );
+
+  return rows;
+}
+
+function buildPunishmentsComponents(
+  guildId: string,
+  config: GuildConfig
+): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
+  const rows: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+
+  // Row 1: Single infraction punishment select
+  rows.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`cfg:${guildId}:select:punishment_single`)
+        .setPlaceholder("Single Infraction Punishment")
+        .addOptions(
+          new StringSelectMenuOptionBuilder()
+            .setLabel("None (Delete message only)")
+            .setValue("none")
+            .setEmoji("🟢")
+            .setDefault(config.punishment_single === "none"),
+          new StringSelectMenuOptionBuilder()
+            .setLabel("Timeout (1 Hour)")
+            .setValue("timeout")
+            .setEmoji("🟡")
+            .setDefault(config.punishment_single === "timeout"),
+        )
+    )
+  );
+
+  // Row 2: Spambot punishment select
+  rows.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`cfg:${guildId}:select:punishment_spam`)
+        .setPlaceholder("Spambot Punishment")
+        .addOptions(
+          new StringSelectMenuOptionBuilder()
+            .setLabel("Timeout (24 Hours)")
+            .setValue("timeout")
+            .setEmoji("🟠")
+            .setDefault(config.punishment_spam === "timeout"),
+          new StringSelectMenuOptionBuilder()
+            .setLabel("Kick Member")
+            .setValue("kick")
+            .setEmoji("🔴")
+            .setDefault(config.punishment_spam === "kick"),
+          new StringSelectMenuOptionBuilder()
+            .setLabel("Ban Member")
+            .setValue("ban")
+            .setEmoji("⛔")
+            .setDefault(config.punishment_spam === "ban"),
+        )
+    )
+  );
+
+  // Row 3: Spam threshold button + Back
+  rows.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`cfg:${guildId}:modal_open:spam_threshold`)
+        .setLabel(
+          config.spam_threshold > 0
+            ? `Spam Threshold: ${config.spam_threshold} Infractions`
+            : "Spam Threshold: Disabled"
+        )
+        .setEmoji("📊")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`cfg:${guildId}:home`)
+        .setLabel("Back")
+        .setEmoji("◀️")
+        .setStyle(ButtonStyle.Secondary),
+    )
+  );
+
+  return rows;
+}
+
+function buildExclusionsComponents(
+  guildId: string,
+  config: GuildConfig
+): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
+  const rows: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+  const excludedChannels: string[] = JSON.parse(config.excluded_channels);
+  const excludedRoles: string[] = JSON.parse(config.excluded_roles);
+
+  // Row 1: Channel select for adding exclusions
+  rows.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new ChannelSelectMenuBuilder()
+        .setCustomId(`cfg:${guildId}:channel_select:excl_add`)
+        .setPlaceholder("Add a channel to exclude...")
+        .setChannelTypes(ChannelType.GuildText)
+        .setMinValues(1)
+        .setMaxValues(1)
+    )
+  );
+
+  // Row 2: Remove excluded channel (StringSelectMenu if any, disabled button if empty)
+  if (excludedChannels.length > 0) {
+    rows.push(
+      new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`cfg:${guildId}:select:excl_channel_remove`)
+          .setPlaceholder("Remove a channel from exclusions...")
+          .addOptions(
+            excludedChannels.map((id) =>
+              new StringSelectMenuOptionBuilder()
+                .setLabel(`#${id}`)
+                .setDescription("Remove this channel from the exclusion list")
+                .setValue(id)
+            )
+          )
+      )
+    );
+  } else {
+    rows.push(
+      new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`cfg:${guildId}:noop:excl_ch`)
+          .setLabel("No excluded channels to remove")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(true)
+      )
+    );
+  }
+
+  // Row 3: Role select for adding exclusions
+  rows.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new RoleSelectMenuBuilder()
+        .setCustomId(`cfg:${guildId}:role_select:excl_add`)
+        .setPlaceholder("Add a role to exclude...")
+        .setMinValues(1)
+        .setMaxValues(1)
+    )
+  );
+
+  // Row 4: Remove excluded role (StringSelectMenu if any, disabled button if empty)
+  if (excludedRoles.length > 0) {
+    rows.push(
+      new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`cfg:${guildId}:select:excl_role_remove`)
+          .setPlaceholder("Remove a role from exclusions...")
+          .addOptions(
+            excludedRoles.map((id) =>
+              new StringSelectMenuOptionBuilder()
+                .setLabel(`@${id}`)
+                .setDescription("Remove this role from the exclusion list")
+                .setValue(id)
+            )
+          )
+      )
+    );
+  } else {
+    rows.push(
+      new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`cfg:${guildId}:noop:excl_rl`)
+          .setLabel("No excluded roles to remove")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(true)
+      )
+    );
+  }
+
+  // Row 5: Back
+  rows.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`cfg:${guildId}:home`)
+        .setLabel("Back")
+        .setEmoji("◀️")
+        .setStyle(ButtonStyle.Secondary),
+    )
+  );
+
+  return rows;
+}
+
+function buildResetComponents(
+  guildId: string
+): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
+  return [
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`cfg:${guildId}:reset:confirm`)
+        .setLabel("Confirm Reset")
+        .setEmoji("✅")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`cfg:${guildId}:reset:cancel`)
+        .setLabel("Cancel")
+        .setEmoji("❌")
+        .setStyle(ButtonStyle.Secondary),
+    ),
+  ];
+}
+
+// ─── Render Helpers ──────────────────────────────────────────────────────────
+
+function renderHome(guildId: string) {
+  const config = guild_config.getConfig(guildId);
+  return {
+    embeds: [buildDashboardEmbed(config, guildId)],
+    components: buildHomeComponents(guildId),
+  };
+}
+
+function renderGeneral(guildId: string) {
+  const config = guild_config.getConfig(guildId);
+  return {
+    embeds: [
+      buildDashboardEmbed(config, guildId, "**⚙️ General Settings** — Configure scanning behavior and log output."),
+    ],
+    components: buildGeneralComponents(guildId, config),
+  };
+}
+
+function renderPunishments(guildId: string) {
+  const config = guild_config.getConfig(guildId);
+  return {
+    embeds: [
+      buildDashboardEmbed(config, guildId, "**⚔️ Punishment Settings** — Configure actions taken against scam offenders."),
+    ],
+    components: buildPunishmentsComponents(guildId, config),
+  };
+}
+
+function renderExclusions(guildId: string) {
+  const config = guild_config.getConfig(guildId);
+  return {
+    embeds: [
+      buildDashboardEmbed(config, guildId, "**🚫 Exclusions** — Channels and roles that bypass the scanner."),
+    ],
+    components: buildExclusionsComponents(guildId, config),
+  };
+}
+
+function renderReset(guildId: string) {
+  const config = guild_config.getConfig(guildId);
+  return {
+    embeds: [
+      buildDashboardEmbed(
+        config,
+        guildId,
+        "**🔄 Reset Configuration**\n\n⚠️ This will reset **all** settings to their defaults. This action cannot be undone."
+      ),
+    ],
+    components: buildResetComponents(guildId),
+  };
+}
+
+// ─── Interaction Handlers ────────────────────────────────────────────────────
+
+/**
+ * `/config` slash command — opens the dashboard.
+ */
 export async function handleConfigCommand(interaction: ChatInputCommandInteraction) {
   if (!interaction.guildId) {
     await interaction.reply({ content: "This command can only be used in a server.", flags: ["Ephemeral"] });
     return;
   }
 
-  const guildId = interaction.guildId;
-  const subcommandGroup = interaction.options.getSubcommandGroup(false);
-  const subcommand = interaction.options.getSubcommand();
+  try {
+    await interaction.reply({ ...renderHome(interaction.guildId), flags: ["Ephemeral"] });
+  } catch (error) {
+    logger.error("Error opening config dashboard:", error, "CONFIG");
+    await interaction.reply({ content: "An error occurred while opening the configuration panel.", flags: ["Ephemeral"] });
+  }
+}
+
+/**
+ * Handles all button interactions with the `cfg:` prefix.
+ */
+export async function handleConfigButton(interaction: ButtonInteraction) {
+  const parts = interaction.customId.split(":");
+  // cfg:<guildId>:<action>:<target?>
+  const guildId = parts[1];
+  const action = parts[2];
+  const target = parts[3];
+
+  // Verify the user has ManageGuild permission
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    await interaction.reply({ content: "You don't have permission to manage server settings.", flags: ["Ephemeral"] });
+    return;
+  }
 
   try {
-    // --- Subcommand groups ---
-    if (subcommandGroup === "exclude-channel") {
-      const channel = interaction.options.getChannel("channel", true);
+    switch (action) {
+      // ── Navigation ──
+      case "home":
+        await interaction.update(renderHome(guildId));
+        break;
 
-      if (subcommand === "add") {
-        const added = guild_config.addExcludedChannel(guildId, channel.id);
-        if (added) {
-          await interaction.reply({
-            content: `✅ <#${channel.id}> has been **excluded** from scanning.`,
-            flags: ["Ephemeral"],
-          });
-          logger.info(`Guild ${guildId}: Excluded channel ${channel.id} from scanning.`, "CONFIG");
-        } else {
-          await interaction.reply({
-            content: `⚠️ <#${channel.id}> is already excluded.`,
-            flags: ["Ephemeral"],
-          });
+      case "cat":
+        switch (target) {
+          case "general":
+            await interaction.update(renderGeneral(guildId));
+            break;
+          case "punishments":
+            await interaction.update(renderPunishments(guildId));
+            break;
+          case "exclusions":
+            await interaction.update(renderExclusions(guildId));
+            break;
+          case "reset":
+            await interaction.update(renderReset(guildId));
+            break;
         }
-      } else if (subcommand === "remove") {
-        const removed = guild_config.removeExcludedChannel(guildId, channel.id);
-        if (removed) {
-          await interaction.reply({
-            content: `✅ <#${channel.id}> will now be **scanned** again.`,
-            flags: ["Ephemeral"],
-          });
-          logger.info(`Guild ${guildId}: Re-enabled scanning in channel ${channel.id}.`, "CONFIG");
-        } else {
-          await interaction.reply({
-            content: `⚠️ <#${channel.id}> was not in the exclusion list.`,
-            flags: ["Ephemeral"],
-          });
+        break;
+
+      // ── General actions ──
+      case "clear":
+        if (target === "log") {
+          guild_config.setLogChannel(guildId, null);
+          logger.info(`Guild ${guildId}: Log channel cleared.`, "CONFIG");
+          await interaction.update(renderGeneral(guildId));
         }
-      }
-      return;
+        break;
+
+      case "toggle":
+        if (target === "scan_images") {
+          const config = guild_config.getConfig(guildId);
+          guild_config.setScanImages(guildId, !config.scan_images);
+          logger.info(`Guild ${guildId}: Image scanning set to ${!config.scan_images}.`, "CONFIG");
+          await interaction.update(renderGeneral(guildId));
+        } else if (target === "scan_links") {
+          const config = guild_config.getConfig(guildId);
+          guild_config.setScanLinks(guildId, !config.scan_links);
+          logger.info(`Guild ${guildId}: Link scanning set to ${!config.scan_links}.`, "CONFIG");
+          await interaction.update(renderGeneral(guildId));
+        }
+        break;
+
+      // ── Modals ──
+      case "modal_open":
+        if (target === "threshold") {
+          const config = guild_config.getConfig(guildId);
+          const modal = new ModalBuilder()
+            .setCustomId(`cfg:${guildId}:modal:threshold`)
+            .setTitle("Set Confidence Threshold")
+            .addComponents(
+              new ActionRowBuilder<TextInputBuilder>().addComponents(
+                new TextInputBuilder()
+                  .setCustomId("value")
+                  .setLabel("Threshold (50 – 100)")
+                  .setPlaceholder(`Current: ${(config.confidence_threshold * 100).toFixed(0)}%`)
+                  .setStyle(TextInputStyle.Short)
+                  .setMinLength(2)
+                  .setMaxLength(3)
+                  .setRequired(true)
+              )
+            );
+          await interaction.showModal(modal);
+        } else if (target === "spam_threshold") {
+          const config = guild_config.getConfig(guildId);
+          const modal = new ModalBuilder()
+            .setCustomId(`cfg:${guildId}:modal:spam_threshold`)
+            .setTitle("Set Spam Threshold")
+            .addComponents(
+              new ActionRowBuilder<TextInputBuilder>().addComponents(
+                new TextInputBuilder()
+                  .setCustomId("value")
+                  .setLabel("Infractions before spambot (0=off)")
+                  .setPlaceholder(`Current: ${config.spam_threshold}`)
+                  .setStyle(TextInputStyle.Short)
+                  .setMinLength(1)
+                  .setMaxLength(3)
+                  .setRequired(true)
+              )
+            );
+          await interaction.showModal(modal);
+        }
+        break;
+
+      // ── Reset ──
+      case "reset":
+        if (target === "confirm") {
+          guild_config.resetConfig(guildId);
+          logger.info(`Guild ${guildId}: Configuration reset to defaults.`, "CONFIG");
+          await interaction.update(renderHome(guildId));
+        } else if (target === "cancel") {
+          await interaction.update(renderHome(guildId));
+        }
+        break;
     }
-
-    if (subcommandGroup === "exclude-role") {
-      const role = interaction.options.getRole("role", true);
-
-      if (subcommand === "add") {
-        const added = guild_config.addExcludedRole(guildId, role.id);
-        if (added) {
-          await interaction.reply({
-            content: `✅ Users with the **${role.name}** role will no longer be scanned.`,
-            flags: ["Ephemeral"],
-          });
-          logger.info(`Guild ${guildId}: Excluded role ${role.id} (${role.name}) from scanning.`, "CONFIG");
-        } else {
-          await interaction.reply({
-            content: `⚠️ The **${role.name}** role is already excluded.`,
-            flags: ["Ephemeral"],
-          });
-        }
-      } else if (subcommand === "remove") {
-        const removed = guild_config.removeExcludedRole(guildId, role.id);
-        if (removed) {
-          await interaction.reply({
-            content: `✅ Users with the **${role.name}** role will now be **scanned** again.`,
-            flags: ["Ephemeral"],
-          });
-          logger.info(`Guild ${guildId}: Re-enabled scanning for role ${role.id} (${role.name}).`, "CONFIG");
-        } else {
-          await interaction.reply({
-            content: `⚠️ The **${role.name}** role was not in the exclusion list.`,
-            flags: ["Ephemeral"],
-          });
-        }
-      }
-      return;
+  } catch (error) {
+    logger.error("Error handling config button:", error, "CONFIG");
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: "An error occurred while updating the configuration.", flags: ["Ephemeral"] });
     }
+  }
+}
 
-    // --- Top-level subcommands ---
-    switch (subcommand) {
-      case "view": {
-        const config = guild_config.getConfig(guildId);
-        const excludedChannels: string[] = JSON.parse(config.excluded_channels);
-        const excludedRoles: string[] = JSON.parse(config.excluded_roles);
+/**
+ * Handles all select menu interactions with the `cfg:` prefix.
+ */
+export async function handleConfigSelect(interaction: AnySelectMenuInteraction) {
+  const parts = interaction.customId.split(":");
+  const guildId = parts[1];
+  const action = parts[2]; // "channel_select" | "role_select" | "select"
+  const target = parts[3]; // "log" | "excl_add" | "punishment_single" | etc.
 
-        const embed = new EmbedBuilder()
-          .setColor(0x5865f2) // Discord blurple
-          .setTitle("⚙️ Scam Scanner Configuration")
-          .addFields(
-            {
-              name: "Log Channel",
-              value: config.log_channel_id ? `<#${config.log_channel_id}>` : "Not set",
-              inline: true,
-            },
-            {
-              name: "Scan Images",
-              value: config.scan_images ? "✅ Enabled" : "❌ Disabled",
-              inline: true,
-            },
-            {
-              name: "Scan Links",
-              value: config.scan_links ? "✅ Enabled" : "❌ Disabled",
-              inline: true,
-            },
-            {
-              name: "Confidence Threshold",
-              value: `${(config.confidence_threshold * 100).toFixed(0)}%`,
-              inline: true,
-            },
-            {
-              name: "Single Infraction",
-              value: formatPunishment(config.punishment_single, "single"),
-              inline: true,
-            },
-            {
-              name: "Spambot Punishment",
-              value: formatPunishment(config.punishment_spam, "spam"),
-              inline: true,
-            },
-            {
-              name: "Spambot Threshold",
-              value: config.spam_threshold > 0 ? `⚠️ ${config.spam_threshold} Infractions` : "🟢 Disabled (Single Only)",
-              inline: true,
-            },
-            {
-              name: "Excluded Channels",
-              value: excludedChannels.length > 0
-                ? excludedChannels.map((id) => `<#${id}>`).join(", ")
-                : "None",
-              inline: false,
-            },
-            {
-              name: "Excluded Roles",
-              value: excludedRoles.length > 0
-                ? excludedRoles.map((id) => `<@&${id}>`).join(", ")
-                : "None",
-              inline: false,
-            }
-          )
-          .setFooter({ text: `Guild ID: ${guildId} | NoCrypto v${packageJson.version}` });
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    await interaction.reply({ content: "You don't have permission to manage server settings.", flags: ["Ephemeral"] });
+    return;
+  }
 
-        await interaction.reply({ embeds: [embed], flags: ["Ephemeral"] });
-        break;
-      }
+  try {
+    switch (action) {
+      // ── Channel select menus ──
+      case "channel_select": {
+        if (!interaction.isChannelSelectMenu()) break;
+        const channelId = interaction.values[0];
 
-      case "logchannel": {
-        const channel = interaction.options.getChannel("channel", true);
-        guild_config.setLogChannel(guildId, channel.id);
-        await interaction.reply({
-          content: `✅ Log channel set to <#${channel.id}>. Scam alerts will be sent there.`,
-          flags: ["Ephemeral"],
-        });
-        logger.info(`Guild ${guildId}: Log channel set to ${channel.id}.`, "CONFIG");
-        break;
-      }
-
-      case "scan-images": {
-        const enabled = interaction.options.getBoolean("enabled", true);
-        guild_config.setScanImages(guildId, enabled);
-        await interaction.reply({
-          content: `✅ Image scanning is now **${enabled ? "enabled" : "disabled"}**.`,
-          flags: ["Ephemeral"],
-        });
-        logger.info(`Guild ${guildId}: Image scanning set to ${enabled}.`, "CONFIG");
-        break;
-      }
-
-      case "scan-links": {
-        const enabled = interaction.options.getBoolean("enabled", true);
-        guild_config.setScanLinks(guildId, enabled);
-        await interaction.reply({
-          content: `✅ Link scanning is now **${enabled ? "enabled" : "disabled"}**.`,
-          flags: ["Ephemeral"],
-        });
-        logger.info(`Guild ${guildId}: Link scanning set to ${enabled}.`, "CONFIG");
-        break;
-      }
-
-      case "threshold": {
-        const value = interaction.options.getNumber("value", true);
-        guild_config.setThreshold(guildId, value);
-        await interaction.reply({
-          content: `✅ Confidence threshold set to **${(value * 100).toFixed(0)}%**. Messages flagged below this level will be ignored.`,
-          flags: ["Ephemeral"],
-        });
-        logger.info(`Guild ${guildId}: Confidence threshold set to ${value}.`, "CONFIG");
-        break;
-      }
-
-      case "reset": {
-        guild_config.resetConfig(guildId);
-        await interaction.reply({
-          content: "✅ All settings have been reset to defaults. The next scan will use default values.",
-          flags: ["Ephemeral"],
-        });
-        logger.info(`Guild ${guildId}: Configuration reset to defaults.`, "CONFIG");
-        break;
-      }
-
-      case "punishment-single": {
-        const action = interaction.options.getString("action", true) as PunishmentSingle;
-        guild_config.setPunishmentSingle(guildId, action);
-        await interaction.reply({
-          content: `✅ Single infraction punishment set to **${formatPunishment(action, "single")}**.`,
-          flags: ["Ephemeral"],
-        });
-        logger.info(`Guild ${guildId}: Single infraction punishment set to '${action}'.`, "CONFIG");
-        break;
-      }
-
-      case "punishment-spam": {
-        const action = interaction.options.getString("action", true) as PunishmentSpam;
-        guild_config.setPunishmentSpam(guildId, action);
-        await interaction.reply({
-          content: `✅ Spambot punishment set to **${formatPunishment(action, "spam")}**.`,
-          flags: ["Ephemeral"],
-        });
-        logger.info(`Guild ${guildId}: Spambot punishment set to '${action}'.`, "CONFIG");
-        break;
-      }
-
-      case "spam-threshold": {
-        const value = interaction.options.getInteger("value", true);
-        guild_config.setSpamThreshold(guildId, value);
-        if (value === 0) {
-          await interaction.reply({
-            content: `✅ Spambot detection has been **disabled**. All infractions will receive the Single Infraction punishment.`,
-            flags: ["Ephemeral"],
-          });
-        } else {
-          await interaction.reply({
-            content: `✅ Spambot threshold set to **${value} infractions**. Repeat offenses or multi-channel spam will trigger spambot punishment.`,
-            flags: ["Ephemeral"],
-          });
+        if (target === "log") {
+          guild_config.setLogChannel(guildId, channelId);
+          logger.info(`Guild ${guildId}: Log channel set to ${channelId}.`, "CONFIG");
+          await interaction.update(renderGeneral(guildId));
+        } else if (target === "excl_add") {
+          const added = guild_config.addExcludedChannel(guildId, channelId);
+          if (added) {
+            logger.info(`Guild ${guildId}: Excluded channel ${channelId} from scanning.`, "CONFIG");
+          }
+          await interaction.update(renderExclusions(guildId));
         }
-        logger.info(`Guild ${guildId}: Spambot threshold set to ${value}.`, "CONFIG");
+        break;
+      }
+
+      // ── Role select menus ──
+      case "role_select": {
+        if (!interaction.isRoleSelectMenu()) break;
+        const roleId = interaction.values[0];
+
+        if (target === "excl_add") {
+          const added = guild_config.addExcludedRole(guildId, roleId);
+          if (added) {
+            logger.info(`Guild ${guildId}: Excluded role ${roleId} from scanning.`, "CONFIG");
+          }
+          await interaction.update(renderExclusions(guildId));
+        }
+        break;
+      }
+
+      // ── String select menus ──
+      case "select": {
+        if (!interaction.isStringSelectMenu()) break;
+        const value = interaction.values[0];
+
+        if (target === "punishment_single") {
+          guild_config.setPunishmentSingle(guildId, value as PunishmentSingle);
+          logger.info(`Guild ${guildId}: Single infraction punishment set to '${value}'.`, "CONFIG");
+          await interaction.update(renderPunishments(guildId));
+        } else if (target === "punishment_spam") {
+          guild_config.setPunishmentSpam(guildId, value as PunishmentSpam);
+          logger.info(`Guild ${guildId}: Spambot punishment set to '${value}'.`, "CONFIG");
+          await interaction.update(renderPunishments(guildId));
+        } else if (target === "excl_channel_remove") {
+          const removed = guild_config.removeExcludedChannel(guildId, value);
+          if (removed) {
+            logger.info(`Guild ${guildId}: Re-enabled scanning in channel ${value}.`, "CONFIG");
+          }
+          await interaction.update(renderExclusions(guildId));
+        } else if (target === "excl_role_remove") {
+          const removed = guild_config.removeExcludedRole(guildId, value);
+          if (removed) {
+            logger.info(`Guild ${guildId}: Re-enabled scanning for role ${value}.`, "CONFIG");
+          }
+          await interaction.update(renderExclusions(guildId));
+        }
         break;
       }
     }
   } catch (error) {
-    logger.error("Error handling /config command:", error, "CONFIG");
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: "An error occurred while updating the configuration.", flags: ["Ephemeral"] });
-    } else {
+    logger.error("Error handling config select:", error, "CONFIG");
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: "An error occurred while updating the configuration.", flags: ["Ephemeral"] });
+    }
+  }
+}
+
+/**
+ * Handles modal submissions with the `cfg:` prefix.
+ */
+export async function handleConfigModal(interaction: ModalSubmitInteraction) {
+  const parts = interaction.customId.split(":");
+  const guildId = parts[1];
+  const target = parts[3]; // "threshold" | "spam_threshold"
+
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    await interaction.reply({ content: "You don't have permission to manage server settings.", flags: ["Ephemeral"] });
+    return;
+  }
+
+  try {
+    const rawValue = interaction.fields.getTextInputValue("value").trim();
+
+    if (target === "threshold") {
+      const num = Number(rawValue);
+      if (isNaN(num) || num < 50 || num > 100) {
+        await interaction.reply({
+          content: "❌ Invalid value. Please enter a number between **50** and **100** (e.g., `70` for 70%).",
+          flags: ["Ephemeral"],
+        });
+        return;
+      }
+      const normalized = num / 100;
+      guild_config.setThreshold(guildId, normalized);
+      logger.info(`Guild ${guildId}: Confidence threshold set to ${normalized}.`, "CONFIG");
+
+      // Modal submissions can't use .update() — they need deferUpdate + editReply
+      // or just reply. We'll reply with the updated panel.
+      await interaction.deferUpdate();
+      await interaction.editReply(renderGeneral(guildId));
+    } else if (target === "spam_threshold") {
+      const num = Number(rawValue);
+      if (isNaN(num) || !Number.isInteger(num) || num < 0) {
+        await interaction.reply({
+          content: "❌ Invalid value. Please enter a non-negative whole number (e.g., `3` for 3 infractions, `0` to disable).",
+          flags: ["Ephemeral"],
+        });
+        return;
+      }
+      guild_config.setSpamThreshold(guildId, num);
+      logger.info(`Guild ${guildId}: Spambot threshold set to ${num}.`, "CONFIG");
+
+      await interaction.deferUpdate();
+      await interaction.editReply(renderPunishments(guildId));
+    }
+  } catch (error) {
+    logger.error("Error handling config modal:", error, "CONFIG");
+    if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: "An error occurred while updating the configuration.", flags: ["Ephemeral"] });
     }
   }

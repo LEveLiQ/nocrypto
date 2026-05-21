@@ -64,15 +64,15 @@ export async function onGuildCreate(guild: Guild) {
       .addFields(
         {
           name: "🚀 1. Set Up an Admin Log Channel (Highly Recommended)",
-          value: "Register a private admin channel where I will log detailed scam alerts, confidence ratings, and actions taken:\n`/config logchannel channel:#admin-logs`"
+          value: "Use `/config` to open the interactive settings panel and set a private admin channel where I will log detailed scam alerts, confidence ratings, and actions taken."
         },
         {
           name: "⚙️ 2. Review Your Settings",
-          value: "Type `/config view` to see your current setup. Default settings scan both links and images with a 70% confidence threshold."
+          value: "The `/config` panel shows your full configuration at a glance. Default settings scan both links and images with a 70% confidence threshold."
         },
         {
           name: "⛔ 3. Configure Tiered Punishments",
-          value: "Customize what happens when scams are flagged:\n• `/config punishment-single` (e.g., delete-only or 1-hour timeout)\n• `/config punishment-spam` (e.g., 24h timeout, kick, or ban for active spambots)\n• `/config spam-threshold` (number of fast infractions to trigger spambot mode)"
+          value: "Customize what happens when scams are flagged from the **Punishments** section in `/config`:\n• Single infraction: delete-only or 1-hour timeout\n• Spambot mode: 24h timeout, kick, or ban for active spambots\n• Spam threshold: number of fast infractions to trigger spambot mode"
         },
         {
           name: "⚠️ 4. Role Hierarchy Check",

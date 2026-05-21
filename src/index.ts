@@ -10,7 +10,7 @@ import { initGemini } from "./utils/gemini";
 import { onReady } from "./events/ready";
 import { onMessageCreate } from "./events/messageCreate";
 import { onGuildCreate } from "./events/guildCreate";
-import { handleConfigCommand } from "./commands/config";
+import { handleConfigCommand, handleConfigButton, handleConfigSelect, handleConfigModal } from "./commands/config";
 import { handleReportCommand } from "./commands/report";
 import { MessageContextMenuCommandInteraction } from "discord.js";
 
@@ -68,6 +68,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         await handleReportCommand(interaction as MessageContextMenuCommandInteraction);
         break;
     }
+  } else if (interaction.isButton() && interaction.customId.startsWith("cfg:")) {
+    await handleConfigButton(interaction);
+  } else if (interaction.isAnySelectMenu() && interaction.customId.startsWith("cfg:")) {
+    await handleConfigSelect(interaction);
+  } else if (interaction.isModalSubmit() && interaction.customId.startsWith("cfg:")) {
+    await handleConfigModal(interaction);
   }
 });
 
