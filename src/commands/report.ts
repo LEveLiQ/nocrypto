@@ -83,7 +83,20 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
   await interaction.deferReply({ flags: ["Ephemeral"] });
 
   const targetMessage = interaction.targetMessage;
-  const content = targetMessage.content || "";
+  let content = targetMessage.content || "";
+
+  // Apply URL Exclusions (Redaction)
+  const excludedUrls: string[] = JSON.parse(config.excluded_urls);
+  if (excludedUrls.length > 0 && content) {
+    for (const url of excludedUrls) {
+      if (url.trim()) {
+        const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escapedUrl, 'gi');
+        content = content.replace(regex, '[SAFE_LINK_REDACTED]');
+      }
+    }
+  }
+
   const attachments = targetMessage.attachments;
 
   // Identify image attachments
@@ -430,6 +443,8 @@ async function sweepRecentMessagesFromOffender(
   logger.info(`RETROACTIVE SWEEP: Initiating sweep for user ${offenderId} messages sent in the last 5 minutes...`, "MONITOR");
 
   const guild = interaction.guild!;
+  const config = guild_config.getConfig(guild.id);
+  const excludedUrls: string[] = JSON.parse(config.excluded_urls);
   
   // Get all text-based channels in the guild
   const textChannels = guild.channels.cache.filter((c) => c.isTextBased()) as Collection<string, TextChannel>;
@@ -457,7 +472,19 @@ async function sweepRecentMessagesFromOffender(
 
       for (const msg of userMessages.values()) {
         sweptCount++;
-        const content = msg.content || "";
+        let content = msg.content || "";
+
+        // Redact excluded URLs
+        if (excludedUrls.length > 0 && content) {
+          for (const url of excludedUrls) {
+            if (url.trim()) {
+              const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const regex = new RegExp(escapedUrl, 'gi');
+              content = content.replace(regex, '[SAFE_LINK_REDACTED]');
+            }
+          }
+        }
+
         const imageAttachments = msg.attachments.filter((att) => att.contentType?.startsWith("image/") || false);
 
         // Also extract image URLs from message text

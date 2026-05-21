@@ -20,6 +20,7 @@ db.exec(`
     confidence_threshold REAL DEFAULT 0.70,
     excluded_channels TEXT DEFAULT '[]',
     excluded_roles TEXT DEFAULT '[]',
+    excluded_urls TEXT DEFAULT '[]',
     punishment_single TEXT DEFAULT 'none',
     punishment_spam TEXT DEFAULT 'ban',
     spam_threshold INTEGER DEFAULT 3,
@@ -44,6 +45,9 @@ try {
 try {
   db.exec(`ALTER TABLE guild_config ADD COLUMN scan_member_age_threshold TEXT DEFAULT 'all';`);
 } catch (_) { /* Column already exists */ }
+try {
+  db.exec(`ALTER TABLE guild_config ADD COLUMN excluded_urls TEXT DEFAULT '[]';`);
+} catch (_) { /* Column already exists */ }
 
 export type PunishmentSingle = 'none' | 'timeout';
 export type PunishmentSpam = 'timeout' | 'kick' | 'ban';
@@ -57,6 +61,7 @@ export interface GuildConfig {
   confidence_threshold: number;
   excluded_channels: string; // JSON array string
   excluded_roles: string;    // JSON array string
+  excluded_urls: string;     // JSON array string
   punishment_single: PunishmentSingle;
   punishment_spam: PunishmentSpam;
   spam_threshold: number;
@@ -160,6 +165,13 @@ const guild_config = {
     return true;
   },
 
+  setExcludedUrls(guildId: string, urls: string[]) {
+    guild_config.getConfig(guildId);
+    return db.prepare(`
+      UPDATE guild_config SET excluded_urls = ? WHERE guild_id = ?
+    `).run(JSON.stringify(urls), guildId);
+  },
+
   setPunishmentSingle(guildId: string, action: PunishmentSingle) {
     guild_config.getConfig(guildId);
     return db.prepare(`
@@ -212,6 +224,11 @@ const guild_config = {
   getExcludedRoles(guildId: string): string[] {
     const config = guild_config.getConfig(guildId);
     return JSON.parse(config.excluded_roles);
+  },
+
+  getExcludedUrls(guildId: string): string[] {
+    const config = guild_config.getConfig(guildId);
+    return JSON.parse(config.excluded_urls);
   },
 };
 

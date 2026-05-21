@@ -66,6 +66,7 @@ function buildDashboardEmbed(
 ): EmbedBuilder {
   const excludedChannels: string[] = JSON.parse(config.excluded_channels);
   const excludedRoles: string[] = JSON.parse(config.excluded_roles);
+  const excludedUrls: string[] = JSON.parse(config.excluded_urls);
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
@@ -129,6 +130,13 @@ function buildDashboardEmbed(
         name: L.configFieldExcludedRoles,
         value: excludedRoles.length > 0
           ? excludedRoles.map((id) => `<@&${id}>`).join(", ")
+          : L.configValueNone,
+        inline: false,
+      },
+      {
+        name: L.configFieldExcludedUrls,
+        value: excludedUrls.length > 0
+          ? excludedUrls.map((url) => `\`${url}\``).join(", ")
           : L.configValueNone,
         inline: false,
       }
@@ -436,9 +444,14 @@ function buildExclusionsComponents(
     );
   }
 
-  // Row 5: Back
+  // Row 5: Edit URLs + Back
   rows.push(
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`cfg:${guildId}:modal_open:urls`)
+        .setLabel(L.configBtnEditUrls)
+        .setEmoji("🔗")
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`cfg:${guildId}:home`)
         .setLabel(L.configBtnBack)
@@ -719,6 +732,26 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
               )
             );
           await interaction.showModal(modal);
+        } else if (target === "urls") {
+          const config = guild_config.getConfig(guildId);
+          const excludedUrls: string[] = JSON.parse(config.excluded_urls);
+          const currentUrls = excludedUrls.join("\n");
+          
+          const modal = new ModalBuilder()
+            .setCustomId(`cfg:${guildId}:modal:urls`)
+            .setTitle(L.modalUrlsTitle)
+            .addComponents(
+              new ActionRowBuilder<TextInputBuilder>().addComponents(
+                new TextInputBuilder()
+                  .setCustomId("value")
+                  .setLabel(L.modalUrlsLabel)
+                  .setPlaceholder(L.modalUrlsPlaceholder)
+                  .setStyle(TextInputStyle.Paragraph)
+                  .setValue(currentUrls)
+                  .setRequired(false)
+              )
+            );
+          await interaction.showModal(modal);
         }
         break;
 
@@ -893,6 +926,17 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction) {
 
       await interaction.deferUpdate();
       await interaction.editReply(renderPunishments(guildId, L));
+    } else if (target === "urls") {
+      const parsedUrls = rawValue
+        .split(/[\n,]+/)
+        .map(u => u.trim().toLowerCase())
+        .filter(u => u.length > 0);
+      
+      guild_config.setExcludedUrls(guildId, parsedUrls);
+      logger.info(`Guild ${guildId}: Excluded URLs updated to: ${parsedUrls.join(", ")}`, "CONFIG");
+
+      await interaction.deferUpdate();
+      await interaction.editReply(renderExclusions(guildId, interaction.guild!, L));
     }
   } catch (error) {
     logger.error("Error handling config modal:", error, "CONFIG");

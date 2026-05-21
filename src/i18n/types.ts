@@ -20,6 +20,7 @@ export interface LocaleStrings {
   configFieldSpambotThreshold: string;
   configFieldExcludedChannels: string;
   configFieldExcludedRoles: string;
+  configFieldExcludedUrls: string;
   configFieldLanguage: string;
   configFieldScanMemberAgeThreshold: string;
   configValueNotSet: string;
@@ -38,6 +39,7 @@ export interface LocaleStrings {
   configBtnGeneral: string;
   configBtnPunishments: string;
   configBtnExclusions: string;
+  configBtnEditUrls: string;
   configBtnTargeting: string;
   configBtnResetAll: string;
   configBtnBack: string;
@@ -91,6 +93,9 @@ export interface LocaleStrings {
   modalSpamThresholdTitle: string;
   modalSpamThresholdLabel: string;
   modalSpamThresholdPlaceholder: string; // "Current: %s"
+  modalUrlsTitle: string;
+  modalUrlsLabel: string;
+  modalUrlsPlaceholder: string;
   // Error / system replies
   errorNotInServer: string;
   errorNoPermission: string;

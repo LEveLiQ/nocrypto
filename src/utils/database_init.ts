@@ -43,6 +43,7 @@ function initializeDatabase() {
         confidence_threshold REAL DEFAULT 0.70,
         excluded_channels TEXT DEFAULT '[]',
         excluded_roles TEXT DEFAULT '[]',
+        excluded_urls TEXT DEFAULT '[]',
         punishment_single TEXT DEFAULT 'none',
         punishment_spam TEXT DEFAULT 'ban',
         spam_threshold INTEGER DEFAULT 3,

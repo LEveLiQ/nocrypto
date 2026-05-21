@@ -124,13 +124,26 @@ export async function onMessageCreate(message: Message, client: Client) {
     }
   }
 
-  // 7. Determine scanning decisions from per-guild config
+  // 7. Redact excluded URLs from text content
+  const excludedUrls: string[] = JSON.parse(config.excluded_urls);
+  let textContent = message.content || "";
+  if (excludedUrls.length > 0 && textContent) {
+    for (const url of excludedUrls) {
+      if (url.trim()) {
+        const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escapedUrl, 'gi');
+        textContent = textContent.replace(regex, '[SAFE_LINK_REDACTED]');
+      }
+    }
+  }
+
+  // 8. Determine scanning decisions from per-guild config
   const SCAN_IMAGES = !!config.scan_images;
   const SCAN_LINKS = !!config.scan_links;
   const CONFIDENCE_THRESHOLD = config.confidence_threshold;
   const logChannelId = config.log_channel_id;
 
-  // 7. Identify image attachments AND image URLs embedded in message text
+  // 9. Identify image attachments AND image URLs embedded in message text
   const imageAttachments = message.attachments.filter((attachment) =>
     attachment.contentType?.startsWith("image/") || false
   );
@@ -138,11 +151,11 @@ export async function onMessageCreate(message: Message, client: Client) {
   // Extract image URLs from message text (e.g. https://i.imgur.com/scam.png)
   const IMAGE_URL_REGEX = /https?:\/\/[^\s]+\.(?:png|jpe?g|gif|webp|bmp|tiff?)(?:[?#][^\s]*)?/gi;
   const linkedImageUrls: string[] = SCAN_IMAGES
-    ? (message.content?.match(IMAGE_URL_REGEX) || []).map((url) => url.replace(/[)>\]]+$/, "")) // strip trailing markdown/html chars
+    ? (textContent.match(IMAGE_URL_REGEX) || []).map((url) => url.replace(/[)>\]]+$/, "")) // strip trailing markdown/html chars
     : [];
 
   const urlRegex = /https?:\/\/[^\s]+/i;
-  const hasUrl = urlRegex.test(message.content || "");
+  const hasUrl = urlRegex.test(textContent);
   const hasImage = imageAttachments.size > 0 || linkedImageUrls.length > 0;
 
   const shouldScanImage = hasImage && SCAN_IMAGES;
@@ -153,15 +166,15 @@ export async function onMessageCreate(message: Message, client: Client) {
     return;
   }
 
-  // 8. De-duplication & Request Coalescing Cache
-  const linkMatch = shouldScanLink ? message.content.match(/https?:\/\/[^\s]+/i) : null;
+  // 10. De-duplication & Request Coalescing Cache
+  const linkMatch = shouldScanLink ? textContent.match(/https?:\/\/[^\s]+/i) : null;
   const linkKey = linkMatch ? linkMatch[0].toLowerCase() : null;
 
   let textKey: string | null = null;
-  if (message.content && message.content.trim().length > 0) {
+  if (textContent.trim().length > 0) {
     textKey = "txt_" + crypto
       .createHash("md5")
-      .update(message.content.trim().toLowerCase())
+      .update(textContent.trim().toLowerCase())
       .digest("hex");
   }
 
@@ -212,7 +225,6 @@ export async function onMessageCreate(message: Message, client: Client) {
     ...imageAttachments.map((att) => att.url),
     ...linkedImageUrls,
   ];
-  const textContent = message.content;
   let scanPromise;
 
   if (existingEntry && hitKey) {
@@ -242,7 +254,7 @@ export async function onMessageCreate(message: Message, client: Client) {
     }
   }
 
-  // 9. Process the scan result
+  // 11. Process the scan result
   try {
     const scanResult = await scanPromise;
 
