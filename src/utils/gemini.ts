@@ -56,16 +56,31 @@ export async function scanMessageForScam(
   textContent: string,
   imageUrls?: string[],
   confidenceThreshold: number = 0.70,
-  locale: string = "en-US"
+  locale: string = "en-US",
+  scanContext?: string,
+  keysSummary?: string
 ): Promise<ScamScanResult> {
   if (!ai) {
     logger.warn("Gemini client is not initialized, skipping scam scan.", "GEMINI");
     return { isScam: false, confidence: 0, reason: "Gemini client not initialized" };
   }
 
+  const logCtx = scanContext ?? "GEMINI";
+
   try {
     const imageCount = imageUrls ? imageUrls.length : 0;
-    logger.info(`Starting scan... ${imageCount > 0 ? `[Has ${imageCount} Image(s)] ` : ""}${textContent ? `[Text length: ${textContent.length}]` : ""}`, "GEMINI");
+    const details: string[] = [];
+    if (imageCount > 0) {
+      details.push(`Images: ${imageCount}`);
+    }
+    if (textContent) {
+      details.push(`Text: ${textContent.length} chars`);
+    }
+    if (keysSummary) {
+      details.push(`Keys: ${keysSummary}`);
+    }
+    const detailsStr = details.length > 0 ? ` │ ${details.join(" │ ")}` : "";
+    logger.gemini(`Starting scan...${detailsStr}`, logCtx);
 
     // Use the locale-specific system prompt, with confidence threshold interpolated
     const localeData = LOCALES[locale] ?? LOCALES["en-US"];
@@ -138,14 +153,14 @@ export async function scanMessageForScam(
     const result: ScamScanResult = JSON.parse(responseText.trim());
 
     if (result.isScam) {
-      logger.warn(`ALERT: Flagged scam (Confidence: ${(result.confidence * 100).toFixed(0)}%). Reason: ${result.reason}`, "GEMINI");
+      logger.warn(`Flagged scam (Confidence: ${(result.confidence * 100).toFixed(0)}%). Reason: ${result.reason}`, logCtx);
     } else {
-      logger.info(`Message scanned and marked SAFE (Confidence: ${(100 - result.confidence * 100).toFixed(0)}% safe).`, "GEMINI");
+      logger.info(`SAFE (Confidence: ${(100 - result.confidence * 100).toFixed(0)}% safe).`, logCtx);
     }
 
     return result;
   } catch (error) {
-    logger.error("Error running scam scan through Gemini:", error, "GEMINI");
+    logger.error("Error running scam scan through Gemini:", error, logCtx);
     return {
       isScam: false,
       confidence: 0,

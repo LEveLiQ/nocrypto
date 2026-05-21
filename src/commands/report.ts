@@ -95,7 +95,11 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
     ...linkedImageUrls,
   ];
 
-  logger.info(`On-demand manual report scan initiated by ${interaction.user.tag} for message sent by ${targetMessage.author.tag} (Msg ID: ${targetMessage.id}).`, "MONITOR");
+  // Build scan context label for terminal logs
+  const channelName = (targetMessage.channel as TextChannel)?.name ?? targetMessage.channelId;
+  const scanContext = `${targetMessage.guild?.name ?? guildId} #${channelName} (manual report by ${interaction.user.tag})`;
+
+  logger.info(`Report initiated for msg by ${targetMessage.author.tag} (ID: ${targetMessage.id}).`, scanContext);
 
   const confidenceThreshold = config.confidence_threshold;
   const logChannelId = config.log_channel_id;
@@ -152,7 +156,6 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
   let scanPromise;
 
   if (existingEntry && hitKey) {
-    logger.info(`DEDUPLICATOR: Coalescing manual report, reusing scan due to cache hit on key: ${hitKey}`, "MONITOR");
     scanPromise = existingEntry.promise;
     if (existingEntry.flaggedChannels && !existingEntry.flaggedChannels.includes(targetMessage.channelId)) {
       existingEntry.flaggedChannels.push(targetMessage.channelId);
@@ -165,8 +168,8 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
       }
     }
   } else {
-    logger.info(`DEDUPLICATOR: Manual report cache miss, initiating new Gemini scan...`, "MONITOR");
-    scanPromise = scanMessageForScam(content, imageUrls, confidenceThreshold, localeKey);
+    const keysSummary = allKeys.join(", ");
+    scanPromise = scanMessageForScam(content, imageUrls, confidenceThreshold, localeKey, scanContext, keysSummary);
     const newEntry = {
       promise: scanPromise,
       timestamp: now,
@@ -324,7 +327,6 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
                     }
 
                     await existingLogMsg.edit({ embeds: [updatedEmbed] });
-                    logger.success(`DEDUPLICATOR: Updated manual report log message with sweep details: ${entry.logMessageId}`, "MONITOR");
                   }
                 } catch (editErr) {
                   logger.error("Failed to edit existing log message, sending a new one:", editErr, "MONITOR");

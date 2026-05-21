@@ -85,6 +85,10 @@ export async function onMessageCreate(message: Message, client: Client) {
   const localeKey = resolveLocaleKey(config.language, message.guild.preferredLocale);
   const L = getLocale(config.language, message.guild.preferredLocale);
 
+  // Build scan context label for terminal logs
+  const channelName = (message.channel as TextChannel).name ?? message.channelId;
+  const scanContext = `${message.guild.name} #${channelName}`;
+
   // 4. Check if this channel is excluded from scanning
   const excludedChannels: string[] = JSON.parse(config.excluded_channels);
   if (excludedChannels.includes(message.channelId)) return;
@@ -190,7 +194,6 @@ export async function onMessageCreate(message: Message, client: Client) {
   let scanPromise;
 
   if (existingEntry && hitKey) {
-    logger.info(`DEDUPLICATOR: Coalesced request, reusing scan due to cache hit on individual key: ${hitKey}`, "MONITOR");
     scanPromise = existingEntry.promise;
     if (existingEntry.flaggedChannels && !existingEntry.flaggedChannels.includes(message.channelId)) {
       existingEntry.flaggedChannels.push(message.channelId);
@@ -204,9 +207,7 @@ export async function onMessageCreate(message: Message, client: Client) {
     }
   } else {
     const keysSummary = allKeys.join(", ");
-    logger.info(`DEDUPLICATOR: Cache miss, starting new scan for key(s): [${keysSummary}]`, "MONITOR");
-
-    scanPromise = scanMessageForScam(textContent, imageUrls, CONFIDENCE_THRESHOLD, localeKey);
+    scanPromise = scanMessageForScam(textContent, imageUrls, CONFIDENCE_THRESHOLD, localeKey, scanContext, keysSummary);
     const newEntry: CacheEntry = {
       promise: scanPromise,
       timestamp: now,
@@ -224,8 +225,6 @@ export async function onMessageCreate(message: Message, client: Client) {
     const scanResult = await scanPromise;
 
     if (scanResult.isScam && scanResult.confidence >= CONFIDENCE_THRESHOLD) {
-      logger.warn(`Scam detected in guild ${message.guild?.name} by ${message.author.tag}! Action required.`, "MONITOR");
-
       // A. Record infraction and classify the offender
       const infraction = recordInfraction(message.author.id, message.channelId);
       const classification = classifyOffender(infraction, config.spam_threshold, L);
@@ -233,7 +232,7 @@ export async function onMessageCreate(message: Message, client: Client) {
         ? config.punishment_spam
         : config.punishment_single;
 
-      logger.info(`Classification: ${classification.label} → Punishment: ${punishmentAction}`, "MONITOR");
+      logger.warn(`Scam detected — ${message.author.tag} │ ${classification.label} → ${punishmentAction}`, scanContext);
 
       // B. Delete the scam message
       let messageDeleted = false;
@@ -340,7 +339,6 @@ export async function onMessageCreate(message: Message, client: Client) {
                     }
 
                     await existingLogMsg.edit({ embeds: [updatedEmbed] });
-                    logger.success(`DEDUPLICATOR: Updated existing log message with escalated classification: ${entry.logMessageId}`, "MONITOR");
                   }
                 } catch (editErr) {
                   logger.error("Failed to edit existing log message, sending a new one:", editErr, "MONITOR");
