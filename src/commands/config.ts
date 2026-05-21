@@ -16,6 +16,7 @@ import {
   TextInputStyle,
   PermissionFlagsBits,
   ChannelType,
+  Guild,
   ComponentType,
   type MessageActionRowComponentBuilder,
   type AnySelectMenuInteraction,
@@ -286,7 +287,8 @@ function buildPunishmentsComponents(
 
 function buildExclusionsComponents(
   guildId: string,
-  config: GuildConfig
+  config: GuildConfig,
+  guild: Guild
 ): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
   const rows: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
   const excludedChannels: string[] = JSON.parse(config.excluded_channels);
@@ -312,11 +314,13 @@ function buildExclusionsComponents(
           .setCustomId(`cfg:${guildId}:select:excl_channel_remove`)
           .setPlaceholder("Remove a channel from exclusions...")
           .addOptions(
-            excludedChannels.map((id) =>
-              new StringSelectMenuOptionBuilder()
-                .setLabel(`#${id}`)
-                .setDescription("Remove this channel from the exclusion list")
-                .setValue(id)
+            excludedChannels.map((id) => {
+              const channel = guild.channels.cache.get(id);
+              return new StringSelectMenuOptionBuilder()
+                .setLabel(`#${channel?.name ?? id}`)
+                .setDescription(channel ? `ID: ${id}` : "Channel not found")
+                .setValue(id);
+            }
             )
           )
       )
@@ -352,12 +356,13 @@ function buildExclusionsComponents(
           .setCustomId(`cfg:${guildId}:select:excl_role_remove`)
           .setPlaceholder("Remove a role from exclusions...")
           .addOptions(
-            excludedRoles.map((id) =>
-              new StringSelectMenuOptionBuilder()
-                .setLabel(`@${id}`)
-                .setDescription("Remove this role from the exclusion list")
-                .setValue(id)
-            )
+            excludedRoles.map((id) => {
+              const role = guild.roles.cache.get(id);
+              return new StringSelectMenuOptionBuilder()
+                .setLabel(`@${role?.name ?? id}`)
+                .setDescription(role ? `ID: ${id}` : "Role not found")
+                .setValue(id);
+            })
           )
       )
     );
@@ -436,13 +441,13 @@ function renderPunishments(guildId: string) {
   };
 }
 
-function renderExclusions(guildId: string) {
+function renderExclusions(guildId: string, guild: Guild) {
   const config = guild_config.getConfig(guildId);
   return {
     embeds: [
       buildDashboardEmbed(config, guildId, "**🚫 Exclusions** — Channels and roles that bypass the scanner."),
     ],
-    components: buildExclusionsComponents(guildId, config),
+    components: buildExclusionsComponents(guildId, config, guild),
   };
 }
 
@@ -511,7 +516,7 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
             await interaction.update(renderPunishments(guildId));
             break;
           case "exclusions":
-            await interaction.update(renderExclusions(guildId));
+            await interaction.update(renderExclusions(guildId, interaction.guild!));
             break;
           case "reset":
             await interaction.update(renderReset(guildId));
@@ -632,7 +637,7 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
           if (added) {
             logger.info(`Guild ${guildId}: Excluded channel ${channelId} from scanning.`, "CONFIG");
           }
-          await interaction.update(renderExclusions(guildId));
+          await interaction.update(renderExclusions(guildId, interaction.guild!));
         }
         break;
       }
@@ -647,7 +652,7 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
           if (added) {
             logger.info(`Guild ${guildId}: Excluded role ${roleId} from scanning.`, "CONFIG");
           }
-          await interaction.update(renderExclusions(guildId));
+          await interaction.update(renderExclusions(guildId, interaction.guild!));
         }
         break;
       }
@@ -670,13 +675,13 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
           if (removed) {
             logger.info(`Guild ${guildId}: Re-enabled scanning in channel ${value}.`, "CONFIG");
           }
-          await interaction.update(renderExclusions(guildId));
+          await interaction.update(renderExclusions(guildId, interaction.guild!));
         } else if (target === "excl_role_remove") {
           const removed = guild_config.removeExcludedRole(guildId, value);
           if (removed) {
             logger.info(`Guild ${guildId}: Re-enabled scanning for role ${value}.`, "CONFIG");
           }
-          await interaction.update(renderExclusions(guildId));
+          await interaction.update(renderExclusions(guildId, interaction.guild!));
         }
         break;
       }
