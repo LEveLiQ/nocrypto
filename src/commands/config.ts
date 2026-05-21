@@ -608,7 +608,7 @@ function renderReset(guildId: string, L: LocaleStrings) {
  * `/config` slash command — opens the dashboard.
  */
 export async function handleConfigCommand(interaction: ChatInputCommandInteraction) {
-  const logCtx = `${interaction.guild?.name || "DM"} @${interaction.user.tag}`;
+  const logCtx = `${interaction.guild!.name} | @${interaction.user.tag}`;
   if (!interaction.guildId) {
     const L = getLocale("auto", null, interaction.locale);
     await interaction.reply({ content: L.errorNotInServer, flags: ["Ephemeral"] });
@@ -620,7 +620,7 @@ export async function handleConfigCommand(interaction: ChatInputCommandInteracti
   try {
     await interaction.reply({ ...renderHome(interaction.guildId, L), flags: ["Ephemeral"] });
   } catch (error) {
-    logger.error("Error opening config dashboard:", error, logCtx);
+    logger.error("Error opening config dashboard:", error, "CONFIG", logCtx);
     await interaction.reply({ content: L.errorGeneric, flags: ["Ephemeral"] });
   }
 }
@@ -629,7 +629,7 @@ export async function handleConfigCommand(interaction: ChatInputCommandInteracti
  * Handles all button interactions with the `cfg:` prefix.
  */
 export async function handleConfigButton(interaction: ButtonInteraction) {
-  const logCtx = `${interaction.guild?.name || "DM"} @${interaction.user.tag}`;
+  const logCtx = `${interaction.guild!.name} | @${interaction.user.tag}`;
   const parts = interaction.customId.split(":");
   // cfg:<guildId>:<action>:<target?>
   const guildId = parts[1];
@@ -677,7 +677,7 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
       case "clear":
         if (target === "log") {
           guild_config.setLogChannel(guildId, null);
-          logger.info(`Log channel cleared.`, logCtx);
+          logger.info(`Log channel cleared.`, "CONFIG", logCtx);
           await interaction.update(renderGeneral(guildId, L));
         }
         break;
@@ -686,12 +686,12 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
         if (target === "scan_images") {
           const config = guild_config.getConfig(guildId);
           guild_config.setScanImages(guildId, !config.scan_images);
-          logger.info(`Image scanning set to ${!config.scan_images}.`, logCtx);
+          logger.info(`Image scanning set to ${!config.scan_images}.`, "CONFIG", logCtx);
           await interaction.update(renderGeneral(guildId, L));
         } else if (target === "scan_links") {
           const config = guild_config.getConfig(guildId);
           guild_config.setScanLinks(guildId, !config.scan_links);
-          logger.info(`Link scanning set to ${!config.scan_links}.`, logCtx);
+          logger.info(`Link scanning set to ${!config.scan_links}.`, "CONFIG", logCtx);
           await interaction.update(renderGeneral(guildId, L));
         }
         break;
@@ -761,7 +761,7 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
       case "reset":
         if (target === "confirm") {
           guild_config.resetConfig(guildId);
-          logger.info(`Configuration reset to defaults.`, logCtx);
+          logger.info(`Configuration reset to defaults.`, "CONFIG", logCtx);
           // Re-resolve L since config was reset (language is now "auto")
           L = resolveL(guildId, interaction.guildLocale, interaction.locale);
           await interaction.update(renderHome(guildId, L));
@@ -771,7 +771,7 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
         break;
     }
   } catch (error) {
-    logger.error("Error handling config button:", error, logCtx);
+    logger.error("Error handling config button:", error, "CONFIG", logCtx);
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: L.errorGeneric, flags: ["Ephemeral"] });
     }
@@ -782,7 +782,7 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
  * Handles all select menu interactions with the `cfg:` prefix.
  */
 export async function handleConfigSelect(interaction: AnySelectMenuInteraction) {
-  const logCtx = `${interaction.guild?.name || "DM"} @${interaction.user.tag}`;
+  const logCtx = `${interaction.guild!.name} | @${interaction.user.tag}`;
   const parts = interaction.customId.split(":");
   const guildId = parts[1];
   const action = parts[2]; // "channel_select" | "role_select" | "select"
@@ -806,12 +806,14 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
 
         if (target === "log") {
           guild_config.setLogChannel(guildId, channelId);
-          logger.info(`Log channel set to ${channelId}.`, logCtx);
+          const channelName = interaction.guild!.channels.cache.get(channelId)?.name || channelId;
+          logger.info(`Log channel set to '#${channelName}'.`, "CONFIG", logCtx);
           await interaction.update(renderGeneral(guildId, L));
         } else if (target === "excl_add") {
           const added = guild_config.addExcludedChannel(guildId, channelId);
           if (added) {
-            logger.info(`Excluded channel ${channelId} from scanning.`, logCtx);
+            const channelName = interaction.guild!.channels.cache.get(channelId)?.name || channelId;
+            logger.info(`Excluded channel '#${channelName}' from scanning.`, "CONFIG", logCtx);
           }
           await interaction.update(renderExclusions(guildId, interaction.guild!, L));
         }
@@ -826,7 +828,8 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
         if (target === "excl_add") {
           const added = guild_config.addExcludedRole(guildId, roleId);
           if (added) {
-            logger.info(`Excluded role ${roleId} from scanning.`, logCtx);
+            const roleName = interaction.guild!.roles.cache.get(roleId)?.name || roleId;
+            logger.info(`Excluded role '@${roleName}' from scanning.`, "CONFIG", logCtx);
           }
           await interaction.update(renderExclusions(guildId, interaction.guild!, L));
         }
@@ -840,27 +843,29 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
 
         if (target === "punishment_single") {
           guild_config.setPunishmentSingle(guildId, value as PunishmentSingle);
-          logger.info(`Single infraction punishment set to '${value}'.`, logCtx);
+          logger.info(`Single infraction punishment set to '${value}'.`, "CONFIG", logCtx);
           await interaction.update(renderPunishments(guildId, L));
         } else if (target === "punishment_spam") {
           guild_config.setPunishmentSpam(guildId, value as PunishmentSpam);
-          logger.info(`Spambot punishment set to '${value}'.`, logCtx);
+          logger.info(`Spambot punishment set to '${value}'.`, "CONFIG", logCtx);
           await interaction.update(renderPunishments(guildId, L));
         } else if (target === "excl_channel_remove") {
           const removed = guild_config.removeExcludedChannel(guildId, value);
           if (removed) {
-            logger.info(`Re-enabled scanning in channel ${value}.`, logCtx);
+            const channelName = interaction.guild!.channels.cache.get(value)?.name || value;
+            logger.info(`Re-enabled scanning in channel '#${channelName}'.`, "CONFIG", logCtx);
           }
           await interaction.update(renderExclusions(guildId, interaction.guild!, L));
         } else if (target === "excl_role_remove") {
           const removed = guild_config.removeExcludedRole(guildId, value);
           if (removed) {
-            logger.info(`Re-enabled scanning for role ${value}.`, logCtx);
+            const roleName = interaction.guild!.roles.cache.get(value)?.name || value;
+            logger.info(`Re-enabled scanning for role '@${roleName}'.`, "CONFIG", logCtx);
           }
           await interaction.update(renderExclusions(guildId, interaction.guild!, L));
         } else if (target === "language") {
-          guild_config.setLanguage(guildId, value);
-          logger.info(`Language set to '${value}'.`, logCtx);
+          guild_config.setLanguage(guildId, value as any);
+          logger.info(`Language set to '${value}'.`, "CONFIG", logCtx);
           // Re-resolve locale since language just changed
           L = resolveL(guildId, interaction.guildLocale, interaction.locale);
           await interaction.update(renderGeneral(guildId, L));
@@ -873,7 +878,7 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
       }
     }
   } catch (error) {
-    logger.error("Error handling config select:", error, logCtx);
+    logger.error("Error handling config select:", error, "CONFIG", logCtx);
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: L.errorGeneric, flags: ["Ephemeral"] });
     }
@@ -884,7 +889,7 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
  * Handles modal submissions with the `cfg:` prefix.
  */
 export async function handleConfigModal(interaction: ModalSubmitInteraction) {
-  const logCtx = `${interaction.guild?.name || "DM"} @${interaction.user.tag}`;
+  const logCtx = `${interaction.guild!.name} | @${interaction.user.tag}`;
   const parts = interaction.customId.split(":");
   const guildId = parts[1];
   const target = parts[3]; // "threshold" | "spam_threshold"
@@ -911,7 +916,7 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction) {
       }
       const normalized = num / 100;
       guild_config.setThreshold(guildId, normalized);
-      logger.info(`Confidence threshold set to ${normalized}.`, logCtx);
+      logger.info(`Confidence threshold set to ${normalized}.`, "CONFIG", logCtx);
 
       // Modal submissions can't use .update() — they need deferUpdate + editReply
       await interaction.deferUpdate();
@@ -926,7 +931,7 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction) {
         return;
       }
       guild_config.setSpamThreshold(guildId, num);
-      logger.info(`Spambot threshold set to ${num}.`, logCtx);
+      logger.info(`Spambot threshold set to ${num}.`, "CONFIG", logCtx);
 
       await interaction.deferUpdate();
       await interaction.editReply(renderPunishments(guildId, L));
@@ -937,13 +942,13 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction) {
         .filter(u => u.length > 0);
       
       guild_config.setExcludedUrls(guildId, parsedUrls);
-      logger.info(`Excluded URLs updated to: ${parsedUrls.join(", ")}`, logCtx);
+      logger.info(`Excluded URLs updated to: ${parsedUrls.join(", ")}`, "CONFIG", logCtx);
 
       await interaction.deferUpdate();
       await interaction.editReply(renderExclusions(guildId, interaction.guild!, L));
     }
   } catch (error) {
-    logger.error("Error handling config modal:", error, logCtx);
+    logger.error("Error handling config modal:", error, "CONFIG", logCtx);
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: L.errorGeneric, flags: ["Ephemeral"] });
     }

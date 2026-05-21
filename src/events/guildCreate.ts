@@ -41,7 +41,7 @@ export async function onGuildCreate(guild: Guild) {
           inviterId = entry.executor.id ?? "";
         }
       } catch (err) {
-        logger.warn(`Failed to fetch audit logs for inviter in ${guild.name}: ${err}`, "CLIENT");
+        logger.warn(`Failed to fetch audit logs for inviter: ${err}`, "CLIENT", guild.name);
       }
     } else {
       missingPermission = true;
@@ -49,10 +49,10 @@ export async function onGuildCreate(guild: Guild) {
   }
 
   const logInviterSuffix = inviterTag !== "Unknown User" 
-    ? ` invited by ${inviterTag} (ID: ${inviterId})` 
+    ? ` (Invited by: @${inviterTag})` 
     : (missingPermission ? " (Missing 'ViewAuditLog' permission to fetch inviter)" : "");
 
-  logger.info(`Joined new guild: ${guild.name} (ID: ${guild.id})${logInviterSuffix}`, "CLIENT");
+  logger.info(`Joined new guild (ID: ${guild.id})${logInviterSuffix}`, "CLIENT", guild.name);
 
   // Resolve locale for this guild (getConfig also creates default row)
   const config = guild_config.getConfig(guild.id);
@@ -79,7 +79,7 @@ export async function onGuildCreate(guild: Guild) {
   }
 
   if (!targetChannel) {
-    logger.warn(`Could not find a writable channel to send onboarding message in ${guild.name}`, "CLIENT");
+    logger.warn(`Could not find a writable channel to send onboarding message.`, "CLIENT", guild.name);
     return;
   }
 
@@ -146,8 +146,8 @@ export async function onGuildCreate(guild: Guild) {
     }
 
     await targetChannel.send({ embeds: [onboardEmbed] });
-    logger.success(`Successfully sent onboarding message to ${guild.name} in #${targetChannel.name}`, "CLIENT");
+    logger.success(`Successfully sent onboarding message.`, "CLIENT", `${guild.name} | #${targetChannel.name}`);
   } catch (err) {
-    logger.error(`Failed to send onboarding message in ${guild.name}:`, err, "CLIENT");
+    logger.error(`Failed to send onboarding message:`, err, "CLIENT", guild.name);
   }
 }

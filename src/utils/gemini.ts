@@ -65,8 +65,6 @@ export async function scanMessageForScam(
     return { isScam: false, confidence: 0, reason: "Gemini client not initialized" };
   }
 
-  const logCtx = scanContext ?? "GEMINI";
-
   try {
     const imageCount = imageUrls ? imageUrls.length : 0;
     const details: string[] = [];
@@ -80,7 +78,7 @@ export async function scanMessageForScam(
       details.push(`Keys: ${keysSummary}`);
     }
     const detailsStr = details.length > 0 ? ` │ ${details.join(" │ ")}` : "";
-    logger.gemini(`Starting scan...${detailsStr}`, logCtx);
+    logger.info(`Starting scan...${detailsStr}`, "GEMINI", scanContext);
 
     // Use the locale-specific system prompt, with confidence threshold interpolated
     const localeData = LOCALES[locale] ?? LOCALES["en-US"];
@@ -153,14 +151,14 @@ export async function scanMessageForScam(
     const result: ScamScanResult = JSON.parse(responseText.trim());
 
     if (result.isScam) {
-      logger.warn(`Flagged scam (Confidence: ${(result.confidence * 100).toFixed(0)}%). Reason: ${result.reason}`, logCtx);
+      logger.warn(`Flagged scam (Confidence: ${(result.confidence * 100).toFixed(0)}%). Reason: ${result.reason}`, "GEMINI", scanContext);
     } else {
-      logger.info(`SAFE (Confidence: ${(100 - result.confidence * 100).toFixed(0)}% safe).`, logCtx);
+      logger.info(`SAFE (Confidence: ${(100 - result.confidence * 100).toFixed(0)}% safe).`, "GEMINI", scanContext);
     }
 
     return result;
   } catch (error) {
-    logger.error("Error running scam scan through Gemini:", error, logCtx);
+    logger.error("Error running scam scan through Gemini:", error, "GEMINI", scanContext);
     return {
       isScam: false,
       confidence: 0,

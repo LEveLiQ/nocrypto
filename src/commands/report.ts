@@ -116,9 +116,9 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
 
   // Build scan context label for terminal logs
   const channelName = (targetMessage.channel as TextChannel)?.name ?? targetMessage.channelId;
-  const scanContext = `${targetMessage.guild?.name ?? guildId} #${channelName} (manual report by ${interaction.user.tag})`;
+  const scanContext = `${targetMessage.guild?.name ?? guildId} | #${channelName} | @${interaction.user.tag}`;
 
-  logger.info(`Report initiated for msg by ${targetMessage.author.tag} (ID: ${targetMessage.id}).`, scanContext);
+  logger.info(`Report initiated for msg by @${targetMessage.author.tag} (ID: ${targetMessage.id}).`, "MONITOR", scanContext);
 
   const confidenceThreshold = config.confidence_threshold;
   const logChannelId = config.log_channel_id;
@@ -206,7 +206,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
     const result = await scanPromise;
 
     if (result.isScam && result.confidence >= confidenceThreshold) {
-      logger.warn(`On-demand scan flagged scam: Guild ${interaction.guild.name} | Sender: ${targetMessage.author.tag} | Reported by: ${interaction.user.tag}.`, "MONITOR");
+      logger.warn(`On-demand scan flagged scam: Sender: @${targetMessage.author.tag}.`, "MONITOR", scanContext);
 
       // A. Delete the manually reported scam message
       let messageDeleted = false;
@@ -217,12 +217,12 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
         try {
           await targetMessage.delete();
           messageDeleted = true;
-          logger.success(`Successfully deleted manually reported scam message.`, "MONITOR");
+          logger.success(`Successfully deleted manually reported scam message.`, "MONITOR", scanContext);
         } catch (err) {
-          logger.error(`Failed to delete reported message:`, err, "MONITOR");
+          logger.error(`Failed to delete reported message:`, err, "MONITOR", scanContext);
         }
       } else {
-        logger.warn(`Lacking 'ManageMessages' permission to delete scam message in channel: ${interaction.channelId}`, "MONITOR");
+        logger.warn(`Lacking 'ManageMessages' permission to delete scam message.`, "MONITOR", scanContext);
       }
 
       // B. Record the infraction for the reported message
@@ -248,7 +248,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
         ? config.punishment_spam
         : config.punishment_single;
 
-      logger.info(`Classification for offender after threat sweep: ${classification.label} → Punishment: ${punishmentAction}`, "MONITOR");
+      logger.info(`Classification for offender after threat sweep: ${classification.label} → Punishment: ${punishmentAction}`, "MONITOR", scanContext);
 
       // E. Execute final server punishment
       let punishmentResult = L.punishResultNone;
@@ -289,7 +289,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
           }
         }, 10000);
       } catch (err) {
-        logger.error(`Could not send warning message to channel ${interaction.channelId}:`, err, "MONITOR");
+        logger.error(`Could not send warning message to channel.`, err, "MONITOR", scanContext);
       }
 
       // G. Send / edit detailed log in admin log channel
@@ -348,7 +348,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
                     await existingLogMsg.edit({ embeds: [updatedEmbed] });
                   }
                 } catch (editErr) {
-                  logger.error("Failed to edit existing log message, sending a new one:", editErr, "MONITOR");
+                  logger.error("Failed to edit existing log message, sending a new one:", editErr, "MONITOR", scanContext);
                 }
               } else {
                 entry.logMessageId = "pending";
@@ -394,12 +394,12 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
 
                 const sentMsg = await logChannel.send({ embeds: [logEmbed] });
                 entry.logMessageId = sentMsg.id;
-                logger.success(`Logged manual report scam alert with threat sweep to channel ${logChannelId} (Msg ID: ${sentMsg.id}).`, "MONITOR");
+                logger.success(`Logged manual report scam alert with threat sweep (Msg ID: ${sentMsg.id}).`, "MONITOR", scanContext);
               }
             }
           }
         } catch (err) {
-          logger.error(`Failed to send log in admin log channel ${logChannelId}:`, err, "MONITOR");
+          logger.error(`Failed to send log in admin log channel.`, err, "MONITOR", scanContext);
         }
       }
 
@@ -412,14 +412,14 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
       });
     } else {
       // Safe! Ephemerally reply to the reporter
-      logger.info(`On-demand scan marked message SAFE: Guild ${interaction.guild.name} | Sender: ${targetMessage.author.tag} | Reported by: ${interaction.user.tag}.`, "MONITOR");
+      logger.info(`On-demand scan marked message SAFE.`, "MONITOR", scanContext);
 
       await interaction.editReply({
         content: t(L.reportSafeResult, (100 - result.confidence * 100).toFixed(0), result.reason),
       });
     }
   } catch (error) {
-    logger.error("Error executing manual report scam scan:", error, "MONITOR");
+    logger.error("Error executing manual report scam scan:", error, "MONITOR", scanContext);
     await interaction.editReply({
       content: t(L.reportError, error instanceof Error ? error.message : String(error)),
     });
@@ -440,9 +440,9 @@ async function sweepRecentMessagesFromOffender(
   L: LocaleStrings,
   flaggedChannels?: string[]
 ): Promise<{ sweptCount: number; deletedCount: number }> {
-  logger.info(`RETROACTIVE SWEEP: Initiating sweep for user ${offenderId} messages sent in the last 5 minutes...`, "MONITOR");
-
   const guild = interaction.guild!;
+  const scanContext = `${guild.name} | @${interaction.user.tag}`;
+  logger.info(`RETROACTIVE SWEEP: Initiating sweep for user ${offenderId} messages sent in the last 5 minutes...`, "MONITOR", scanContext);
   const config = guild_config.getConfig(guild.id);
   const excludedUrls: string[] = JSON.parse(config.excluded_urls);
   
@@ -512,19 +512,19 @@ async function sweepRecentMessagesFromOffender(
             try {
               await msg.delete();
               deletedCount++;
-              logger.success(`RETROACTIVE SWEEP: Deleted duplicate scam message ${msg.id} in channel <#${channel.id}>.`, "MONITOR");
+              logger.success(`RETROACTIVE SWEEP: Deleted duplicate scam message in channel '#${channel.name}'.`, "MONITOR", scanContext);
             } catch (err) {
-              logger.error(`RETROACTIVE SWEEP: Failed to delete duplicate message ${msg.id}:`, err, "MONITOR");
+              logger.error(`RETROACTIVE SWEEP: Failed to delete duplicate message:`, err, "MONITOR", scanContext);
             }
           }
         }
       }
     } catch (err) {
-      logger.error(`RETROACTIVE SWEEP: Error sweeping channel ${channel.id}:`, err, "MONITOR");
+      logger.error(`RETROACTIVE SWEEP: Error sweeping channel '#${channel.name}':`, err, "MONITOR", scanContext);
     }
   });
 
   await Promise.all(sweepPromises);
-  logger.success(`RETROACTIVE SWEEP: Sweep complete. Swept ${sweptCount} messages, purged ${deletedCount} other copies of the scam.`, "MONITOR");
+  logger.success(`RETROACTIVE SWEEP: Sweep complete. Swept ${sweptCount} messages, purged ${deletedCount} other copies of the scam.`, "MONITOR", scanContext);
   return { sweptCount, deletedCount };
 }

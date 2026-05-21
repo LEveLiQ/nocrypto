@@ -20,41 +20,38 @@ function getTimestamp(): string {
 }
 
 export const logger = {
-  info: (message: string, context?: string) => {
-    const ctx = context ? `${colors.dim}[${context}]${colors.reset} ` : "";
+  info: (message: string, moduleContext?: string, scope?: string) => {
+    const mod = moduleContext ? `${colors.dim}[${moduleContext}]${colors.reset}`.padEnd(9 + colors.dim.length + colors.reset.length, " ") + " " : "";
+    const scp = scope ? `${colors.magenta}[${scope}]${colors.reset} ` : "";
     console.log(
-      `${colors.dim}[${getTimestamp()}]${colors.reset} ${colors.cyan}INFO${colors.reset}  ${ctx}${message}`
+      `${colors.dim}[${getTimestamp()}]${colors.reset} ${colors.cyan}INFO   ${colors.reset} ${mod}${scp}${message}`
     );
   },
 
-  success: (message: string, context?: string) => {
-    const ctx = context ? `${colors.dim}[${context}]${colors.reset} ` : "";
+  success: (message: string, moduleContext?: string, scope?: string) => {
+    const mod = moduleContext ? `${colors.dim}[${moduleContext}]${colors.reset}`.padEnd(9 + colors.dim.length + colors.reset.length, " ") + " " : "";
+    const scp = scope ? `${colors.magenta}[${scope}]${colors.reset} ` : "";
     console.log(
-      `${colors.dim}[${getTimestamp()}]${colors.reset} ${colors.green}${colors.bright}SUCCESS${colors.reset} ${ctx}${message}`
+      `${colors.dim}[${getTimestamp()}]${colors.reset} ${colors.green}${colors.bright}SUCCESS${colors.reset} ${mod}${scp}${message}`
     );
   },
 
-  warn: (message: string, context?: string) => {
-    const ctx = context ? `${colors.dim}[${context}]${colors.reset} ` : "";
+  warn: (message: string, moduleContext?: string, scope?: string) => {
+    const mod = moduleContext ? `${colors.dim}[${moduleContext}]${colors.reset}`.padEnd(9 + colors.dim.length + colors.reset.length, " ") + " " : "";
+    const scp = scope ? `${colors.magenta}[${scope}]${colors.reset} ` : "";
     console.warn(
-      `${colors.dim}[${getTimestamp()}]${colors.reset} ${colors.yellow}${colors.bright}WARN${colors.reset}  ${ctx}${message}`
+      `${colors.dim}[${getTimestamp()}]${colors.reset} ${colors.yellow}${colors.bright}WARN   ${colors.reset} ${mod}${scp}${message}`
     );
   },
 
-  error: (message: string, error?: any, context?: string) => {
-    const ctx = context ? `${colors.dim}[${context}]${colors.reset} ` : "";
+  error: (message: string, error?: any, moduleContext?: string, scope?: string) => {
+    const mod = moduleContext ? `${colors.dim}[${moduleContext}]${colors.reset}`.padEnd(9 + colors.dim.length + colors.reset.length, " ") + " " : "";
+    const scp = scope ? `${colors.magenta}[${scope}]${colors.reset} ` : "";
     console.error(
-      `${colors.dim}[${getTimestamp()}]${colors.reset} ${colors.red}${colors.bright}ERROR${colors.reset} ${ctx}${message}`
+      `${colors.dim}[${getTimestamp()}]${colors.reset} ${colors.red}${colors.bright}ERROR  ${colors.reset} ${mod}${scp}${message}`
     );
     if (error) {
       console.error(error);
     }
-  },
-
-  gemini: (message: string, context?: string) => {
-    const ctx = context ? `${colors.dim}[${context}]${colors.reset} ` : "";
-    console.log(
-      `${colors.dim}[${getTimestamp()}]${colors.reset} ${colors.magenta}${colors.bright}GEMINI${colors.reset} ${ctx}${message}`
-    );
   },
 };

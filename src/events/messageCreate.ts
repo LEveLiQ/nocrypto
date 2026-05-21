@@ -87,7 +87,7 @@ export async function onMessageCreate(message: Message, client: Client) {
 
   // Build scan context label for terminal logs
   const channelName = (message.channel as TextChannel).name ?? message.channelId;
-  const scanContext = `${message.guild.name} #${channelName}`;
+  const scanContext = `${message.guild.name} | #${channelName} | @${message.author.tag}`;
 
   // 4. Check if this channel is excluded from scanning
   const excludedChannels: string[] = JSON.parse(config.excluded_channels);
@@ -118,7 +118,7 @@ export async function onMessageCreate(message: Message, client: Client) {
 
       if (thresholdMs > 0 && memberAgeMs > thresholdMs) {
         // Member has been in the server longer than the configured threshold - skip scan
-        logger.info(`Skipping message scan for ${message.author.tag} because they joined the server on ${joinedAt.toDateString()} (threshold: ${config.scan_member_age_threshold})`, "MONITOR");
+        logger.info(`Skipping message scan because they joined the server on ${joinedAt.toDateString()} (threshold: ${config.scan_member_age_threshold})`, "MONITOR", scanContext);
         return;
       }
     }
@@ -266,7 +266,7 @@ export async function onMessageCreate(message: Message, client: Client) {
         ? config.punishment_spam
         : config.punishment_single;
 
-      logger.warn(`Scam detected — ${message.author.tag} │ ${classification.label} → ${punishmentAction}`, scanContext);
+      logger.warn(`Scam detected: ${classification.label} → ${punishmentAction}`, "MONITOR", scanContext);
 
       // B. Delete the scam message
       let messageDeleted = false;
@@ -278,12 +278,12 @@ export async function onMessageCreate(message: Message, client: Client) {
         try {
           await message.delete();
           messageDeleted = true;
-          logger.success(`Successfully deleted scam message sent by ${message.author.tag}.`, "MONITOR");
+          logger.success(`Successfully deleted scam message.`, "MONITOR", scanContext);
         } catch (err) {
-          logger.error(`Failed to delete message:`, err, "MONITOR");
+          logger.error(`Failed to delete message:`, err, "MONITOR", scanContext);
         }
       } else {
-        logger.warn(`Lacking 'ManageMessages' permission to delete scam message in channel: ${message.channelId}`, "MONITOR");
+        logger.warn(`Lacking 'ManageMessages' permission to delete scam message.`, "MONITOR", scanContext);
       }
 
       // C. Execute the punishment
@@ -315,7 +315,7 @@ export async function onMessageCreate(message: Message, client: Client) {
           }
         }, 10000);
       } catch (err) {
-        logger.error(`Could not send warning message to channel ${message.channelId}:`, err, "MONITOR");
+        logger.error(`Could not send warning message to channel.`, err, "MONITOR", scanContext);
       }
 
       // E. Send a detailed log to the dedicated admin log channel (if configured)
@@ -375,7 +375,7 @@ export async function onMessageCreate(message: Message, client: Client) {
                     await existingLogMsg.edit({ embeds: [updatedEmbed] });
                   }
                 } catch (editErr) {
-                  logger.error("Failed to edit existing log message, sending a new one:", editErr, "MONITOR");
+                  logger.error("Failed to edit existing log message, sending a new one:", editErr, "MONITOR", scanContext);
                 }
               } else {
                 // First log! Block duplicate attempts by setting to pending while sending
@@ -418,17 +418,17 @@ export async function onMessageCreate(message: Message, client: Client) {
 
                 const sentMsg = await logChannel.send({ embeds: [logEmbed] });
                 entry.logMessageId = sentMsg.id;
-                logger.success(`Logged new scam alert to channel ${logChannelId} (Msg ID: ${sentMsg.id}).`, "MONITOR");
+                logger.success(`Logged new scam alert (Msg ID: ${sentMsg.id}).`, "MONITOR", scanContext);
               }
             }
           }
         } catch (err) {
-          logger.error(`Failed to send/edit log in admin log channel ${logChannelId}:`, err, "MONITOR");
+          logger.error(`Failed to send/edit log in admin log channel.`, err, "MONITOR", scanContext);
         }
       }
     }
   } catch (error) {
-    logger.error("Error processing message:", error, "MONITOR");
+    logger.error("Error processing message:", error, "MONITOR", scanContext);
   }
 }
 
@@ -445,15 +445,17 @@ export async function executePunishment(
   const botMember = guild.members.me;
   if (!botMember) return L.punishResultBotNotFound;
 
+  const punishCtx = `${guild.name} | @${member.user.tag}`;
+
   // Role hierarchy check: bot must be higher than the target
   if (member.roles.highest.position >= botMember.roles.highest.position) {
-    logger.warn(`Cannot punish ${member.user.tag}: their highest role is equal to or above the bot's.`, "PUNISH");
+    logger.warn(`Cannot punish: their highest role is equal to or above the bot's.`, "PUNISH", punishCtx);
     return L.punishResultSkippedRoleHierarchy;
   }
 
   // Don't punish the server owner
   if (member.id === guild.ownerId) {
-    logger.warn(`Cannot punish ${member.user.tag}: they are the server owner.`, "PUNISH");
+    logger.warn(`Cannot punish: they are the server owner.`, "PUNISH", punishCtx);
     return L.punishResultSkippedOwner;
   }
 
@@ -471,7 +473,7 @@ export async function executePunishment(
           return L.punishResultMissingModerate;
         }
         await member.timeout(duration, punishReason);
-        logger.success(`Timed out ${member.user.tag} for ${label}.`, "PUNISH");
+        logger.success(`Timed out for ${label}.`, "PUNISH", punishCtx);
         return t(L.punishResultTimedOut, label);
       }
       case "kick": {
@@ -479,7 +481,7 @@ export async function executePunishment(
           return L.punishResultMissingKick;
         }
         await member.kick(punishReason);
-        logger.success(`Kicked ${member.user.tag} from the server.`, "PUNISH");
+        logger.success(`Kicked from the server.`, "PUNISH", punishCtx);
         return L.punishResultKicked;
       }
       case "ban": {
@@ -487,14 +489,14 @@ export async function executePunishment(
           return L.punishResultMissingBan;
         }
         await member.ban({ reason: punishReason, deleteMessageSeconds: 86400 }); // also purge 24h of messages
-        logger.success(`Banned ${member.user.tag} from the server.`, "PUNISH");
+        logger.success(`Banned from the server.`, "PUNISH", punishCtx);
         return L.punishResultBanned;
       }
       default:
         return L.punishResultNone;
     }
   } catch (err) {
-    logger.error(`Failed to execute punishment '${action}' on ${member.user.tag}:`, err, "PUNISH");
+    logger.error(`Failed to execute punishment '${action}':`, err, "PUNISH", punishCtx);
     return t(L.punishResultFailed, action);
   }
 }
