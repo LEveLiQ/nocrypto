@@ -22,7 +22,8 @@ db.exec(`
     excluded_roles TEXT DEFAULT '[]',
     punishment_single TEXT DEFAULT 'none',
     punishment_spam TEXT DEFAULT 'ban',
-    spam_threshold INTEGER DEFAULT 3
+    spam_threshold INTEGER DEFAULT 3,
+    language TEXT DEFAULT 'auto'
   );
 `);
 
@@ -35,6 +36,9 @@ try {
 } catch (_) { /* Column already exists */ }
 try {
   db.exec(`ALTER TABLE guild_config ADD COLUMN spam_threshold INTEGER DEFAULT 3;`);
+} catch (_) { /* Column already exists */ }
+try {
+  db.exec(`ALTER TABLE guild_config ADD COLUMN language TEXT DEFAULT 'auto';`);
 } catch (_) { /* Column already exists */ }
 
 export type PunishmentSingle = 'none' | 'timeout';
@@ -51,6 +55,7 @@ export interface GuildConfig {
   punishment_single: PunishmentSingle;
   punishment_spam: PunishmentSpam;
   spam_threshold: number;
+  language: string;          // 'auto' | 'en-US' | 'ko'
 }
 
 const guild_config = {
@@ -168,6 +173,13 @@ const guild_config = {
     return db.prepare(`
       UPDATE guild_config SET spam_threshold = ? WHERE guild_id = ?
     `).run(value, guildId);
+  },
+
+  setLanguage(guildId: string, lang: string) {
+    guild_config.getConfig(guildId);
+    return db.prepare(`
+      UPDATE guild_config SET language = ? WHERE guild_id = ?
+    `).run(lang, guildId);
   },
 
   resetConfig(guildId: string) {

@@ -1,5 +1,7 @@
 import { Guild, EmbedBuilder, ChannelType, PermissionsBitField, AuditLogEvent } from "discord.js";
 import { logger } from "../utils/logger";
+import { guild_config } from "../utils/database";
+import { getLocale, t, resolveLocaleKey } from "../i18n";
 import packageJson from "../../package.json";
 
 export async function onGuildCreate(guild: Guild) {
@@ -38,6 +40,11 @@ export async function onGuildCreate(guild: Guild) {
 
   logger.info(`Joined new guild: ${guild.name} (ID: ${guild.id})${logInviterSuffix}`, "CLIENT");
 
+  // Resolve locale for this guild (getConfig also creates default row)
+  const config = guild_config.getConfig(guild.id);
+  const localeKey = resolveLocaleKey(config.language, guild.preferredLocale);
+  const L = getLocale(config.language, guild.preferredLocale);
+
   // Find a suitable channel to send the onboarding message
   let targetChannel = guild.systemChannel;
 
@@ -55,31 +62,33 @@ export async function onGuildCreate(guild: Guild) {
   }
 
   try {
+    const inviterMention = inviterId 
+      ? (localeKey === "ko" ? `, <@${inviterId}>님` : `, <@${inviterId}>`) 
+      : "";
+
     const onboardEmbed = new EmbedBuilder()
       .setColor(0x5865f2) // Discord Blurple
-      .setTitle("👋 Hello, I'm NoCrypto!")
-      .setDescription(
-        `Thanks for adding me to your server${inviterId ? `, <@${inviterId}>` : ""}! I am a security scanner powered by Google Gemini, designed to automatically detect and eliminate common scam patterns such as phishing links, fake Nitro giveaways, and malicious images before they compromise your community.`
-      )
+      .setTitle(L.onboardTitle)
+      .setDescription(t(L.onboardDescription, inviterMention))
       .addFields(
         {
-          name: "🚀 1. Set Up an Admin Log Channel (Highly Recommended)",
-          value: "Use `/config` to open the interactive settings panel and set a private admin channel where I will log detailed scam alerts, confidence ratings, and actions taken."
+          name: L.onboardStep1Title,
+          value: L.onboardStep1Value,
         },
         {
-          name: "⚙️ 2. Review Your Settings",
-          value: "The `/config` panel shows your full configuration at a glance. Default settings scan both links and images with a 70% confidence threshold."
+          name: L.onboardStep2Title,
+          value: L.onboardStep2Value,
         },
         {
-          name: "⛔ 3. Configure Tiered Punishments",
-          value: "Customize what happens when scams are flagged from the **Punishments** section in `/config`:\n• Single infraction: delete-only or 1-hour timeout\n• Spambot mode: 24h timeout, kick, or ban for active spambots\n• Spam threshold: number of fast infractions to trigger spambot mode"
+          name: L.onboardStep3Title,
+          value: L.onboardStep3Value,
         },
         {
-          name: "⚠️ 4. Role Hierarchy Check",
-          value: "To allow me to execute timeouts, kicks, or bans, please go to **Server Settings -> Roles** and drag my bot role **above** your standard member roles."
+          name: L.onboardStep4Title,
+          value: L.onboardStep4Value,
         }
       )
-      .setFooter({ text: `Made with ❤️ by LEveLiQ | v${packageJson.version}` });
+      .setFooter({ text: t(L.onboardFooter, packageJson.version) });
 
     await targetChannel.send({ embeds: [onboardEmbed] });
     logger.success(`Successfully sent onboarding message to ${guild.name} in #${targetChannel.name}`, "CLIENT");

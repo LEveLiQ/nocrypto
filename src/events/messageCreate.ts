@@ -9,6 +9,7 @@ import {
 import { logger } from "../utils/logger";
 import { scanMessageForScam } from "../utils/gemini";
 import { guild_config } from "../utils/database";
+import { getLocale, resolveLocaleKey, t, LocaleStrings } from "../i18n";
 import packageJson from "../../package.json";
 import * as crypto from "crypto";
 
@@ -47,17 +48,17 @@ export function recordInfraction(userId: string, channelId: string): UserInfract
   return record;
 }
 
-export function classifyOffender(record: UserInfraction, spamThreshold: number): { isSpammer: boolean; label: string } {
+export function classifyOffender(record: UserInfraction, spamThreshold: number, L: LocaleStrings): { isSpammer: boolean; label: string } {
   if (spamThreshold <= 0) {
-    return { isSpammer: false, label: "Single Infraction" };
+    return { isSpammer: false, label: L.classifySingle };
   }
   if (record.channels.size > 1) {
-    return { isSpammer: true, label: `Active Spammer (${record.channels.size} channels, ${record.count} infractions)` };
+    return { isSpammer: true, label: t(L.classifyActiveSpammer, record.channels.size, record.count) };
   }
   if (record.count >= spamThreshold) {
-    return { isSpammer: true, label: `Repeat Offender (${record.count} infractions in same channel)` };
+    return { isSpammer: true, label: t(L.classifyRepeatOffender, record.count) };
   }
-  return { isSpammer: false, label: "Single Infraction" };
+  return { isSpammer: false, label: L.classifySingle };
 }
 
 export interface CacheEntry {
@@ -80,11 +81,15 @@ export async function onMessageCreate(message: Message, client: Client) {
   const guildId = message.guild.id;
   const config = guild_config.getConfig(guildId);
 
-  // 3. Check if this channel is excluded from scanning
+  // 3. Resolve locale for this guild
+  const localeKey = resolveLocaleKey(config.language, message.guild.preferredLocale);
+  const L = getLocale(config.language, message.guild.preferredLocale);
+
+  // 4. Check if this channel is excluded from scanning
   const excludedChannels: string[] = JSON.parse(config.excluded_channels);
   if (excludedChannels.includes(message.channelId)) return;
 
-  // 4. Check if the author has an excluded role
+  // 5. Check if the author has an excluded role
   const excludedRoles: string[] = JSON.parse(config.excluded_roles);
   if (excludedRoles.length > 0 && message.member) {
     const hasExcludedRole = message.member.roles.cache.some((role) =>
@@ -93,13 +98,13 @@ export async function onMessageCreate(message: Message, client: Client) {
     if (hasExcludedRole) return;
   }
 
-  // 5. Determine scanning decisions from per-guild config
+  // 6. Determine scanning decisions from per-guild config
   const SCAN_IMAGES = !!config.scan_images;
   const SCAN_LINKS = !!config.scan_links;
   const CONFIDENCE_THRESHOLD = config.confidence_threshold;
   const logChannelId = config.log_channel_id;
 
-  // 6. Identify image attachments AND image URLs embedded in message text
+  // 7. Identify image attachments AND image URLs embedded in message text
   const imageAttachments = message.attachments.filter((attachment) =>
     attachment.contentType?.startsWith("image/") || false
   );
@@ -122,7 +127,7 @@ export async function onMessageCreate(message: Message, client: Client) {
     return;
   }
 
-  // 7. De-duplication & Request Coalescing Cache
+  // 8. De-duplication & Request Coalescing Cache
   const linkMatch = shouldScanLink ? message.content.match(/https?:\/\/[^\s]+/i) : null;
   const linkKey = linkMatch ? linkMatch[0].toLowerCase() : null;
 
@@ -201,7 +206,7 @@ export async function onMessageCreate(message: Message, client: Client) {
     const keysSummary = allKeys.join(", ");
     logger.info(`DEDUPLICATOR: Cache miss, starting new scan for key(s): [${keysSummary}]`, "MONITOR");
 
-    scanPromise = scanMessageForScam(textContent, imageUrls, CONFIDENCE_THRESHOLD);
+    scanPromise = scanMessageForScam(textContent, imageUrls, CONFIDENCE_THRESHOLD, localeKey);
     const newEntry: CacheEntry = {
       promise: scanPromise,
       timestamp: now,
@@ -214,7 +219,7 @@ export async function onMessageCreate(message: Message, client: Client) {
     }
   }
 
-  // 8. Process the scan result
+  // 9. Process the scan result
   try {
     const scanResult = await scanPromise;
 
@@ -223,7 +228,7 @@ export async function onMessageCreate(message: Message, client: Client) {
 
       // A. Record infraction and classify the offender
       const infraction = recordInfraction(message.author.id, message.channelId);
-      const classification = classifyOffender(infraction, config.spam_threshold);
+      const classification = classifyOffender(infraction, config.spam_threshold, L);
       const punishmentAction = classification.isSpammer
         ? config.punishment_spam
         : config.punishment_single;
@@ -249,23 +254,21 @@ export async function onMessageCreate(message: Message, client: Client) {
       }
 
       // C. Execute the punishment
-      let punishmentResult = "None";
+      let punishmentResult = L.punishResultNone;
       const member = message.member;
 
       if (punishmentAction !== "none" && member) {
-        punishmentResult = await executePunishment(member, message.guild!, punishmentAction, classification, scanResult.reason);
+        punishmentResult = await executePunishment(member, message.guild!, punishmentAction, classification, scanResult.reason, L);
       }
 
       // D. Send warning to the channel where it occurred
       try {
-        const punishmentLabel = punishmentAction === "none" ? "" : ` The user has been **${getPunishmentPastTense(punishmentAction)}**.`;
+        const punishmentLabel = punishmentAction === "none" ? "" : t(L.warnPunishmentSuffix, getPunishmentPastTense(punishmentAction, L));
         const warningEmbed = new EmbedBuilder()
           .setColor(classification.isSpammer ? 0xcc0000 : 0xff3333)
-          .setTitle(classification.isSpammer ? "🚨 Spambot Attack Detected" : "⚠️ Scam / Malicious Content Detected")
-          .setDescription(
-            `A message sent by **${message.author.username}** was flagged as a scam and has been automatically removed to protect the server.${punishmentLabel}`
-          )
-          .addFields({ name: "Reason", value: scanResult.reason })
+          .setTitle(classification.isSpammer ? L.warnTitleSpammer : L.warnTitleSingle)
+          .setDescription(t(L.warnDescription, message.author.username, punishmentLabel))
+          .addFields({ name: L.warnFieldReason, value: scanResult.reason })
           .setFooter({ text: `NoCrypto v${packageJson.version}` });
 
         const warnMessage = await (message.channel as TextChannel).send({ embeds: [warningEmbed] });
@@ -313,17 +316,17 @@ export async function onMessageCreate(message: Message, client: Client) {
                     const updatedEmbed = EmbedBuilder.from(existingEmbed);
 
                     const fields = existingEmbed.fields.map((f) => {
-                      if (f.name === "Channel" || f.name === "Channels") {
-                        return { name: "Channels", value: channelsList, inline: false };
+                      if (f.name === L.logFieldChannels || f.name === "Channel" || f.name === "Channels") {
+                        return { name: L.logFieldChannels, value: channelsList, inline: false };
                       }
-                      if (f.name === "Status") {
-                        return { name: "Status", value: "Deleted (All Spans)", inline: true };
+                      if (f.name === L.logFieldStatus || f.name === "Status") {
+                        return { name: L.logFieldStatus, value: L.logStatusDeletedAllSpans, inline: true };
                       }
-                      if (f.name === "Classification") {
-                        return { name: "Classification", value: classification.label, inline: false };
+                      if (f.name === L.logFieldClassification || f.name === "Classification") {
+                        return { name: L.logFieldClassification, value: classification.label, inline: false };
                       }
-                      if (f.name === "Punishment") {
-                        return { name: "Punishment", value: punishmentResult, inline: true };
+                      if (f.name === L.logFieldPunishment || f.name === "Punishment") {
+                        return { name: L.logFieldPunishment, value: punishmentResult, inline: true };
                       }
                       return f;
                     });
@@ -333,7 +336,7 @@ export async function onMessageCreate(message: Message, client: Client) {
                     // Escalate embed appearance if user has been reclassified as a spammer
                     if (classification.isSpammer) {
                       updatedEmbed.setColor(0x8b0000);
-                      updatedEmbed.setTitle("🚨 Spambot Attack Flagged");
+                      updatedEmbed.setTitle(L.logTitleSpambotUpdate);
                     }
 
                     await existingLogMsg.edit({ embeds: [updatedEmbed] });
@@ -348,16 +351,16 @@ export async function onMessageCreate(message: Message, client: Client) {
 
                 const logEmbed = new EmbedBuilder()
                   .setColor(classification.isSpammer ? 0x8b0000 : 0xdc3545)
-                  .setTitle(classification.isSpammer ? "🚨 Spambot Attack Flagged" : "🚨 Scam Alert Flagged")
+                  .setTitle(classification.isSpammer ? L.logTitleSpambot : L.logTitleScam)
                   .addFields(
-                    { name: "Sender", value: `${message.author.tag} (<@${message.author.id}>)`, inline: true },
+                    { name: L.logFieldSender, value: `${message.author.tag} (<@${message.author.id}>)`, inline: true },
                     { name: "User ID", value: message.author.id, inline: true },
-                    { name: "Channels", value: channelsList, inline: false },
-                    { name: "Confidence", value: `${(scanResult.confidence * 100).toFixed(0)}%`, inline: true },
-                    { name: "Status", value: messageDeleted ? "Deleted" : "Deletion Failed / No Permission", inline: true },
-                    { name: "Classification", value: classification.label, inline: false },
-                    { name: "Punishment", value: punishmentResult, inline: true },
-                    { name: "Reason", value: scanResult.reason }
+                    { name: L.logFieldChannels, value: channelsList, inline: false },
+                    { name: L.logFieldConfidence, value: `${(scanResult.confidence * 100).toFixed(0)}%`, inline: true },
+                    { name: L.logFieldStatus, value: messageDeleted ? L.logStatusDeleted : L.logStatusFailed, inline: true },
+                    { name: L.logFieldClassification, value: classification.label, inline: false },
+                    { name: L.logFieldPunishment, value: punishmentResult, inline: true },
+                    { name: L.logFieldReason, value: scanResult.reason }
                   )
                   .setFooter({ text: `NoCrypto v${packageJson.version}` });
 
@@ -366,14 +369,14 @@ export async function onMessageCreate(message: Message, client: Client) {
                   const truncatedText = textContent.length > maxContentLength
                     ? textContent.substring(0, maxContentLength - 3) + "..."
                     : textContent;
-                  logEmbed.addFields({ name: "Message Content", value: `\`\`\`\n${truncatedText}\n\`\`\`` });
+                  logEmbed.addFields({ name: L.logFieldMessageContent, value: `\`\`\`\n${truncatedText}\n\`\`\`` });
                 }
 
                 if (imageAttachments.size > 0) {
                   const imageLinks = Array.from(imageAttachments.values())
                     .map((att, idx) => `[Image ${idx + 1}](${att.url})`)
                     .join(", ");
-                  logEmbed.addFields({ name: "Flagged Image Files", value: imageLinks });
+                  logEmbed.addFields({ name: L.logFieldFlaggedImages, value: imageLinks });
 
                   const firstImage = imageAttachments.first();
                   if (firstImage) {
@@ -404,21 +407,22 @@ export async function executePunishment(
   guild: Message["guild"] & {},
   action: string,
   classification: { isSpammer: boolean; label: string },
-  reason: string
+  reason: string,
+  L: LocaleStrings
 ): Promise<string> {
   const botMember = guild.members.me;
-  if (!botMember) return "❌ Bot member not found in guild";
+  if (!botMember) return L.punishResultBotNotFound;
 
   // Role hierarchy check: bot must be higher than the target
   if (member.roles.highest.position >= botMember.roles.highest.position) {
     logger.warn(`Cannot punish ${member.user.tag}: their highest role is equal to or above the bot's.`, "PUNISH");
-    return "⚠️ Skipped (User's role is too high)";
+    return L.punishResultSkippedRoleHierarchy;
   }
 
   // Don't punish the server owner
   if (member.id === guild.ownerId) {
     logger.warn(`Cannot punish ${member.user.tag}: they are the server owner.`, "PUNISH");
-    return "⚠️ Skipped (Server Owner)";
+    return L.punishResultSkippedOwner;
   }
 
   const punishReason = `[NoCrypto] ${classification.label}: ${reason}`;
@@ -429,45 +433,45 @@ export async function executePunishment(
         const duration = classification.isSpammer
           ? 24 * 60 * 60 * 1000  // 24 hours for spambots
           : 1 * 60 * 60 * 1000;  // 1 hour for single infraction
-        const label = classification.isSpammer ? "24 hours" : "1 hour";
+        const label = classification.isSpammer ? "24h" : "1h";
 
         if (!botMember.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
-          return "❌ Missing ModerateMembers permission";
+          return L.punishResultMissingModerate;
         }
         await member.timeout(duration, punishReason);
         logger.success(`Timed out ${member.user.tag} for ${label}.`, "PUNISH");
-        return `🟡 Timed Out (${label})`;
+        return t(L.punishResultTimedOut, label);
       }
       case "kick": {
         if (!botMember.permissions.has(PermissionsBitField.Flags.KickMembers)) {
-          return "❌ Missing KickMembers permission";
+          return L.punishResultMissingKick;
         }
         await member.kick(punishReason);
         logger.success(`Kicked ${member.user.tag} from the server.`, "PUNISH");
-        return "🔴 Kicked";
+        return L.punishResultKicked;
       }
       case "ban": {
         if (!botMember.permissions.has(PermissionsBitField.Flags.BanMembers)) {
-          return "❌ Missing BanMembers permission";
+          return L.punishResultMissingBan;
         }
         await member.ban({ reason: punishReason, deleteMessageSeconds: 86400 }); // also purge 24h of messages
         logger.success(`Banned ${member.user.tag} from the server.`, "PUNISH");
-        return "⛔ Banned";
+        return L.punishResultBanned;
       }
       default:
-        return "None";
+        return L.punishResultNone;
     }
   } catch (err) {
     logger.error(`Failed to execute punishment '${action}' on ${member.user.tag}:`, err, "PUNISH");
-    return `❌ Failed (${action})`;
+    return t(L.punishResultFailed, action);
   }
 }
 
-export function getPunishmentPastTense(action: string): string {
+export function getPunishmentPastTense(action: string, L: LocaleStrings): string {
   switch (action) {
-    case "timeout": return "timed out";
-    case "kick": return "kicked";
-    case "ban": return "banned";
-    default: return "punished";
+    case "timeout": return L.punishPastTimeout;
+    case "kick": return L.punishPastKick;
+    case "ban": return L.punishPastBan;
+    default: return L.punishPastDefault;
   }
 }

@@ -23,6 +23,7 @@ import {
 } from "discord.js";
 import { guild_config, GuildConfig, PunishmentSingle, PunishmentSpam } from "../utils/database";
 import { logger } from "../utils/logger";
+import { getLocale, t, getLanguageDisplayName, LocaleStrings } from "../i18n";
 import packageJson from "../../package.json";
 
 // ─── Slash Command (no subcommands) ──────────────────────────────────────────
@@ -34,14 +35,12 @@ export const configCommand = new SlashCommandBuilder()
 
 // ─── Formatting Helpers ──────────────────────────────────────────────────────
 
-function formatPunishment(action: string, tier: "single" | "spam"): string {
-  const labels: Record<string, string> = {
-    none: "🟢 None (Delete Only)",
-    timeout: tier === "single" ? "🟡 Timeout (1 Hour)" : "🟠 Timeout (24 Hours)",
-    kick: "🔴 Kick Member",
-    ban: "⛔ Ban Member",
-  };
-  return labels[action] || action;
+function formatPunishment(action: string, tier: "single" | "spam", L: LocaleStrings): string {
+  if (action === "none") return L.punishLabelNone;
+  if (action === "timeout") return tier === "single" ? L.punishLabelTimeoutSingle : L.punishLabelTimeoutSpam;
+  if (action === "kick") return L.punishLabelKick;
+  if (action === "ban") return L.punishLabelBan;
+  return action;
 }
 
 // ─── Dashboard Embed ─────────────────────────────────────────────────────────
@@ -49,6 +48,7 @@ function formatPunishment(action: string, tier: "single" | "spam"): string {
 function buildDashboardEmbed(
   config: GuildConfig,
   guildId: string,
+  L: LocaleStrings,
   categoryDescription?: string
 ): EmbedBuilder {
   const excludedChannels: string[] = JSON.parse(config.excluded_channels);
@@ -56,61 +56,66 @@ function buildDashboardEmbed(
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle("⚙️ Scam Scanner — Server Configuration")
+    .setTitle(L.configTitle)
     .addFields(
       {
-        name: "Log Channel",
-        value: config.log_channel_id ? `<#${config.log_channel_id}>` : "Not set",
+        name: L.configFieldLogChannel,
+        value: config.log_channel_id ? `<#${config.log_channel_id}>` : L.configValueNotSet,
         inline: true,
       },
       {
-        name: "Scan Images",
-        value: config.scan_images ? "✅ Enabled" : "❌ Disabled",
+        name: L.configFieldScanImages,
+        value: config.scan_images ? L.configValueEnabled : L.configValueDisabled,
         inline: true,
       },
       {
-        name: "Scan Links",
-        value: config.scan_links ? "✅ Enabled" : "❌ Disabled",
+        name: L.configFieldScanLinks,
+        value: config.scan_links ? L.configValueEnabled : L.configValueDisabled,
         inline: true,
       },
       {
-        name: "Confidence Threshold",
+        name: L.configFieldConfidenceThreshold,
         value: `${(config.confidence_threshold * 100).toFixed(0)}%`,
         inline: true,
       },
       {
-        name: "Single Infraction",
-        value: formatPunishment(config.punishment_single, "single"),
+        name: L.configFieldSingleInfraction,
+        value: formatPunishment(config.punishment_single, "single", L),
         inline: true,
       },
       {
-        name: "Spambot Punishment",
-        value: formatPunishment(config.punishment_spam, "spam"),
+        name: L.configFieldSpambotPunishment,
+        value: formatPunishment(config.punishment_spam, "spam", L),
         inline: true,
       },
       {
-        name: "Spambot Threshold",
+        name: L.configFieldSpambotThreshold,
         value: config.spam_threshold > 0
-          ? `⚠️ ${config.spam_threshold} Infractions`
-          : "🟢 Disabled (Single Only)",
+          ? t(L.configValueInfractions, config.spam_threshold)
+          : L.configValueSpambotThresholdDisabled,
         inline: true,
       },
       {
-        name: "Excluded Channels",
+        name: L.configFieldLanguage,
+        value: getLanguageDisplayName(config.language),
+        inline: true,
+      },
+      {
+        name: L.configFieldExcludedChannels,
         value: excludedChannels.length > 0
           ? excludedChannels.map((id) => `<#${id}>`).join(", ")
-          : "None",
+          : L.configValueNone,
         inline: false,
       },
       {
-        name: "Excluded Roles",
+        name: L.configFieldExcludedRoles,
         value: excludedRoles.length > 0
           ? excludedRoles.map((id) => `<@&${id}>`).join(", ")
-          : "None",
+          : L.configValueNone,
         inline: false,
       }
     )
-    .setFooter({ text: `Made with ❤️ by LEveLiQ | NoCrypto v${packageJson.version}` });
+    .setFooter({ text: t(L.configFooter, packageJson.version) });
 
   if (categoryDescription) {
     embed.setDescription(categoryDescription);
@@ -122,27 +127,28 @@ function buildDashboardEmbed(
 // ─── Component Builders ──────────────────────────────────────────────────────
 
 function buildHomeComponents(
-  guildId: string
+  guildId: string,
+  L: LocaleStrings
 ): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
   const row = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`cfg:${guildId}:cat:general`)
-      .setLabel("General")
+      .setLabel(L.configBtnGeneral)
       .setEmoji("⚙️")
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(`cfg:${guildId}:cat:punishments`)
-      .setLabel("Punishments")
+      .setLabel(L.configBtnPunishments)
       .setEmoji("⚔️")
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(`cfg:${guildId}:cat:exclusions`)
-      .setLabel("Exclusions")
+      .setLabel(L.configBtnExclusions)
       .setEmoji("🚫")
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(`cfg:${guildId}:cat:reset`)
-      .setLabel("Reset All")
+      .setLabel(L.configBtnResetAll)
       .setEmoji("🔄")
       .setStyle(ButtonStyle.Danger),
   );
@@ -152,7 +158,8 @@ function buildHomeComponents(
 
 function buildGeneralComponents(
   guildId: string,
-  config: GuildConfig
+  config: GuildConfig,
+  L: LocaleStrings
 ): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
   const rows: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
 
@@ -161,7 +168,7 @@ function buildGeneralComponents(
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
         .setCustomId(`cfg:${guildId}:channel_select:log`)
-        .setPlaceholder("Select a log channel...")
+        .setPlaceholder(L.configSelectLogChannel)
         .setChannelTypes(ChannelType.GuildText)
         .setMinValues(1)
         .setMaxValues(1)
@@ -173,34 +180,60 @@ function buildGeneralComponents(
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`cfg:${guildId}:clear:log`)
-        .setLabel("Clear Log Channel")
+        .setLabel(L.configBtnClearLogChannel)
         .setEmoji("🗑️")
         .setStyle(ButtonStyle.Danger)
         .setDisabled(!config.log_channel_id),
       new ButtonBuilder()
         .setCustomId(`cfg:${guildId}:toggle:scan_images`)
-        .setLabel(`Scan Images: ${config.scan_images ? "ON" : "OFF"}`)
+        .setLabel(config.scan_images ? L.configBtnScanImagesOn : L.configBtnScanImagesOff)
         .setEmoji("🖼️")
         .setStyle(config.scan_images ? ButtonStyle.Success : ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`cfg:${guildId}:toggle:scan_links`)
-        .setLabel(`Scan Links: ${config.scan_links ? "ON" : "OFF"}`)
+        .setLabel(config.scan_links ? L.configBtnScanLinksOn : L.configBtnScanLinksOff)
         .setEmoji("🔗")
         .setStyle(config.scan_links ? ButtonStyle.Success : ButtonStyle.Secondary),
     )
   );
 
-  // Row 3: Threshold + Back
+  // Row 3: Language select menu
+  rows.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`cfg:${guildId}:select:language`)
+        .setPlaceholder(L.configSelectLanguage)
+        .addOptions(
+          new StringSelectMenuOptionBuilder()
+            .setLabel(L.configLangAuto)
+            .setValue("auto")
+            .setEmoji("🌐")
+            .setDefault(config.language === "auto"),
+          new StringSelectMenuOptionBuilder()
+            .setLabel(L.configLangEnUS)
+            .setValue("en-US")
+            .setEmoji("🇺🇸")
+            .setDefault(config.language === "en-US"),
+          new StringSelectMenuOptionBuilder()
+            .setLabel(L.configLangKo)
+            .setValue("ko")
+            .setEmoji("🇰🇷")
+            .setDefault(config.language === "ko"),
+        )
+    )
+  );
+
+  // Row 4: Threshold + Back
   rows.push(
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`cfg:${guildId}:modal_open:threshold`)
-        .setLabel(`Threshold: ${(config.confidence_threshold * 100).toFixed(0)}%`)
+        .setLabel(t(L.configBtnThreshold, (config.confidence_threshold * 100).toFixed(0)))
         .setEmoji("🎯")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`cfg:${guildId}:home`)
-        .setLabel("Back")
+        .setLabel(L.configBtnBack)
         .setEmoji("◀️")
         .setStyle(ButtonStyle.Secondary),
     )
@@ -211,7 +244,8 @@ function buildGeneralComponents(
 
 function buildPunishmentsComponents(
   guildId: string,
-  config: GuildConfig
+  config: GuildConfig,
+  L: LocaleStrings
 ): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
   const rows: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
 
@@ -220,15 +254,15 @@ function buildPunishmentsComponents(
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(`cfg:${guildId}:select:punishment_single`)
-        .setPlaceholder("Single Infraction Punishment")
+        .setPlaceholder(L.configSelectSinglePunishment)
         .addOptions(
           new StringSelectMenuOptionBuilder()
-            .setLabel("None (Delete message only)")
+            .setLabel(L.punishOptNone)
             .setValue("none")
             .setEmoji("🟢")
             .setDefault(config.punishment_single === "none"),
           new StringSelectMenuOptionBuilder()
-            .setLabel("Timeout (1 Hour)")
+            .setLabel(L.punishOptTimeoutSingle)
             .setValue("timeout")
             .setEmoji("🟡")
             .setDefault(config.punishment_single === "timeout"),
@@ -241,20 +275,20 @@ function buildPunishmentsComponents(
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(`cfg:${guildId}:select:punishment_spam`)
-        .setPlaceholder("Spambot Punishment")
+        .setPlaceholder(L.configSelectSpambotPunishment)
         .addOptions(
           new StringSelectMenuOptionBuilder()
-            .setLabel("Timeout (24 Hours)")
+            .setLabel(L.punishOptTimeoutSpam)
             .setValue("timeout")
             .setEmoji("🟠")
             .setDefault(config.punishment_spam === "timeout"),
           new StringSelectMenuOptionBuilder()
-            .setLabel("Kick Member")
+            .setLabel(L.punishOptKick)
             .setValue("kick")
             .setEmoji("🔴")
             .setDefault(config.punishment_spam === "kick"),
           new StringSelectMenuOptionBuilder()
-            .setLabel("Ban Member")
+            .setLabel(L.punishOptBan)
             .setValue("ban")
             .setEmoji("⛔")
             .setDefault(config.punishment_spam === "ban"),
@@ -269,14 +303,14 @@ function buildPunishmentsComponents(
         .setCustomId(`cfg:${guildId}:modal_open:spam_threshold`)
         .setLabel(
           config.spam_threshold > 0
-            ? `Spam Threshold: ${config.spam_threshold} Infractions`
-            : "Spam Threshold: Disabled"
+            ? t(L.configBtnSpamThreshold, config.spam_threshold)
+            : L.configBtnSpamThresholdOff
         )
         .setEmoji("📊")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`cfg:${guildId}:home`)
-        .setLabel("Back")
+        .setLabel(L.configBtnBack)
         .setEmoji("◀️")
         .setStyle(ButtonStyle.Secondary),
     )
@@ -288,7 +322,8 @@ function buildPunishmentsComponents(
 function buildExclusionsComponents(
   guildId: string,
   config: GuildConfig,
-  guild: Guild
+  guild: Guild,
+  L: LocaleStrings
 ): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
   const rows: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
   const excludedChannels: string[] = JSON.parse(config.excluded_channels);
@@ -299,7 +334,7 @@ function buildExclusionsComponents(
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
         .setCustomId(`cfg:${guildId}:channel_select:excl_add`)
-        .setPlaceholder("Add a channel to exclude...")
+        .setPlaceholder(L.configSelectAddChannel)
         .setChannelTypes(ChannelType.GuildText)
         .setMinValues(1)
         .setMaxValues(1)
@@ -312,7 +347,7 @@ function buildExclusionsComponents(
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId(`cfg:${guildId}:select:excl_channel_remove`)
-          .setPlaceholder("Remove a channel from exclusions...")
+          .setPlaceholder(L.configSelectRemoveChannel)
           .addOptions(
             excludedChannels.map((id) => {
               const channel = guild.channels.cache.get(id);
@@ -330,7 +365,7 @@ function buildExclusionsComponents(
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId(`cfg:${guildId}:noop:excl_ch`)
-          .setLabel("No excluded channels to remove")
+          .setLabel(L.configBtnNoExcludedChannels)
           .setStyle(ButtonStyle.Secondary)
           .setDisabled(true)
       )
@@ -342,7 +377,7 @@ function buildExclusionsComponents(
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
       new RoleSelectMenuBuilder()
         .setCustomId(`cfg:${guildId}:role_select:excl_add`)
-        .setPlaceholder("Add a role to exclude...")
+        .setPlaceholder(L.configSelectAddRole)
         .setMinValues(1)
         .setMaxValues(1)
     )
@@ -354,7 +389,7 @@ function buildExclusionsComponents(
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId(`cfg:${guildId}:select:excl_role_remove`)
-          .setPlaceholder("Remove a role from exclusions...")
+          .setPlaceholder(L.configSelectRemoveRole)
           .addOptions(
             excludedRoles.map((id) => {
               const role = guild.roles.cache.get(id);
@@ -371,7 +406,7 @@ function buildExclusionsComponents(
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId(`cfg:${guildId}:noop:excl_rl`)
-          .setLabel("No excluded roles to remove")
+          .setLabel(L.configBtnNoExcludedRoles)
           .setStyle(ButtonStyle.Secondary)
           .setDisabled(true)
       )
@@ -383,7 +418,7 @@ function buildExclusionsComponents(
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`cfg:${guildId}:home`)
-        .setLabel("Back")
+        .setLabel(L.configBtnBack)
         .setEmoji("◀️")
         .setStyle(ButtonStyle.Secondary),
     )
@@ -393,75 +428,79 @@ function buildExclusionsComponents(
 }
 
 function buildResetComponents(
-  guildId: string
+  guildId: string,
+  L: LocaleStrings
 ): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
   return [
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`cfg:${guildId}:reset:confirm`)
-        .setLabel("Confirm Reset")
+        .setLabel(L.configBtnConfirmReset)
         .setEmoji("✅")
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
         .setCustomId(`cfg:${guildId}:reset:cancel`)
-        .setLabel("Cancel")
+        .setLabel(L.configBtnCancelReset)
         .setEmoji("❌")
         .setStyle(ButtonStyle.Secondary),
     ),
   ];
 }
 
+// ─── Locale Resolution Helper ────────────────────────────────────────────────
+
+function resolveL(guildId: string, guildLocale?: string | null, userLocale?: string | null): LocaleStrings {
+  const config = guild_config.getConfig(guildId);
+  return getLocale(config.language, guildLocale, userLocale);
+}
+
 // ─── Render Helpers ──────────────────────────────────────────────────────────
 
-function renderHome(guildId: string) {
+function renderHome(guildId: string, L: LocaleStrings) {
   const config = guild_config.getConfig(guildId);
   return {
-    embeds: [buildDashboardEmbed(config, guildId)],
-    components: buildHomeComponents(guildId),
+    embeds: [buildDashboardEmbed(config, guildId, L)],
+    components: buildHomeComponents(guildId, L),
   };
 }
 
-function renderGeneral(guildId: string) {
+function renderGeneral(guildId: string, L: LocaleStrings) {
   const config = guild_config.getConfig(guildId);
   return {
     embeds: [
-      buildDashboardEmbed(config, guildId, "**⚙️ General Settings** — Configure scanning behavior and log output."),
+      buildDashboardEmbed(config, guildId, L, L.configDescGeneral),
     ],
-    components: buildGeneralComponents(guildId, config),
+    components: buildGeneralComponents(guildId, config, L),
   };
 }
 
-function renderPunishments(guildId: string) {
+function renderPunishments(guildId: string, L: LocaleStrings) {
   const config = guild_config.getConfig(guildId);
   return {
     embeds: [
-      buildDashboardEmbed(config, guildId, "**⚔️ Punishment Settings** — Configure actions taken against scam offenders."),
+      buildDashboardEmbed(config, guildId, L, L.configDescPunishments),
     ],
-    components: buildPunishmentsComponents(guildId, config),
+    components: buildPunishmentsComponents(guildId, config, L),
   };
 }
 
-function renderExclusions(guildId: string, guild: Guild) {
+function renderExclusions(guildId: string, guild: Guild, L: LocaleStrings) {
   const config = guild_config.getConfig(guildId);
   return {
     embeds: [
-      buildDashboardEmbed(config, guildId, "**🚫 Exclusions** — Channels and roles that bypass the scanner."),
+      buildDashboardEmbed(config, guildId, L, L.configDescExclusions),
     ],
-    components: buildExclusionsComponents(guildId, config, guild),
+    components: buildExclusionsComponents(guildId, config, guild, L),
   };
 }
 
-function renderReset(guildId: string) {
+function renderReset(guildId: string, L: LocaleStrings) {
   const config = guild_config.getConfig(guildId);
   return {
     embeds: [
-      buildDashboardEmbed(
-        config,
-        guildId,
-        "**🔄 Reset Configuration**\n\n⚠️ This will reset **all** settings to their defaults. This action cannot be undone."
-      ),
+      buildDashboardEmbed(config, guildId, L, L.configDescReset),
     ],
-    components: buildResetComponents(guildId),
+    components: buildResetComponents(guildId, L),
   };
 }
 
@@ -472,15 +511,18 @@ function renderReset(guildId: string) {
  */
 export async function handleConfigCommand(interaction: ChatInputCommandInteraction) {
   if (!interaction.guildId) {
-    await interaction.reply({ content: "This command can only be used in a server.", flags: ["Ephemeral"] });
+    const L = getLocale("auto", null, interaction.locale);
+    await interaction.reply({ content: L.errorNotInServer, flags: ["Ephemeral"] });
     return;
   }
 
+  const L = resolveL(interaction.guildId, interaction.guildLocale, interaction.locale);
+
   try {
-    await interaction.reply({ ...renderHome(interaction.guildId), flags: ["Ephemeral"] });
+    await interaction.reply({ ...renderHome(interaction.guildId, L), flags: ["Ephemeral"] });
   } catch (error) {
     logger.error("Error opening config dashboard:", error, "CONFIG");
-    await interaction.reply({ content: "An error occurred while opening the configuration panel.", flags: ["Ephemeral"] });
+    await interaction.reply({ content: L.errorGeneric, flags: ["Ephemeral"] });
   }
 }
 
@@ -496,30 +538,34 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
 
   // Verify the user has ManageGuild permission
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    await interaction.reply({ content: "You don't have permission to manage server settings.", flags: ["Ephemeral"] });
+    const L = resolveL(guildId, interaction.guildLocale, interaction.locale);
+    await interaction.reply({ content: L.errorNoPermission, flags: ["Ephemeral"] });
     return;
   }
+
+  // Resolve locale — note: for language changes, we re-resolve after the change
+  let L = resolveL(guildId, interaction.guildLocale, interaction.locale);
 
   try {
     switch (action) {
       // ── Navigation ──
       case "home":
-        await interaction.update(renderHome(guildId));
+        await interaction.update(renderHome(guildId, L));
         break;
 
       case "cat":
         switch (target) {
           case "general":
-            await interaction.update(renderGeneral(guildId));
+            await interaction.update(renderGeneral(guildId, L));
             break;
           case "punishments":
-            await interaction.update(renderPunishments(guildId));
+            await interaction.update(renderPunishments(guildId, L));
             break;
           case "exclusions":
-            await interaction.update(renderExclusions(guildId, interaction.guild!));
+            await interaction.update(renderExclusions(guildId, interaction.guild!, L));
             break;
           case "reset":
-            await interaction.update(renderReset(guildId));
+            await interaction.update(renderReset(guildId, L));
             break;
         }
         break;
@@ -529,7 +575,7 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
         if (target === "log") {
           guild_config.setLogChannel(guildId, null);
           logger.info(`Guild ${guildId}: Log channel cleared.`, "CONFIG");
-          await interaction.update(renderGeneral(guildId));
+          await interaction.update(renderGeneral(guildId, L));
         }
         break;
 
@@ -538,12 +584,12 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
           const config = guild_config.getConfig(guildId);
           guild_config.setScanImages(guildId, !config.scan_images);
           logger.info(`Guild ${guildId}: Image scanning set to ${!config.scan_images}.`, "CONFIG");
-          await interaction.update(renderGeneral(guildId));
+          await interaction.update(renderGeneral(guildId, L));
         } else if (target === "scan_links") {
           const config = guild_config.getConfig(guildId);
           guild_config.setScanLinks(guildId, !config.scan_links);
           logger.info(`Guild ${guildId}: Link scanning set to ${!config.scan_links}.`, "CONFIG");
-          await interaction.update(renderGeneral(guildId));
+          await interaction.update(renderGeneral(guildId, L));
         }
         break;
 
@@ -553,13 +599,13 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
           const config = guild_config.getConfig(guildId);
           const modal = new ModalBuilder()
             .setCustomId(`cfg:${guildId}:modal:threshold`)
-            .setTitle("Set Confidence Threshold")
+            .setTitle(L.modalThresholdTitle)
             .addComponents(
               new ActionRowBuilder<TextInputBuilder>().addComponents(
                 new TextInputBuilder()
                   .setCustomId("value")
-                  .setLabel("Threshold (50 – 100)")
-                  .setPlaceholder(`Current: ${(config.confidence_threshold * 100).toFixed(0)}%`)
+                  .setLabel(L.modalThresholdLabel)
+                  .setPlaceholder(t(L.modalThresholdPlaceholder, (config.confidence_threshold * 100).toFixed(0)))
                   .setStyle(TextInputStyle.Short)
                   .setMinLength(2)
                   .setMaxLength(3)
@@ -571,13 +617,13 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
           const config = guild_config.getConfig(guildId);
           const modal = new ModalBuilder()
             .setCustomId(`cfg:${guildId}:modal:spam_threshold`)
-            .setTitle("Set Spam Threshold")
+            .setTitle(L.modalSpamThresholdTitle)
             .addComponents(
               new ActionRowBuilder<TextInputBuilder>().addComponents(
                 new TextInputBuilder()
                   .setCustomId("value")
-                  .setLabel("Infractions before spambot (0=off)")
-                  .setPlaceholder(`Current: ${config.spam_threshold}`)
+                  .setLabel(L.modalSpamThresholdLabel)
+                  .setPlaceholder(t(L.modalSpamThresholdPlaceholder, String(config.spam_threshold)))
                   .setStyle(TextInputStyle.Short)
                   .setMinLength(1)
                   .setMaxLength(3)
@@ -593,16 +639,18 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
         if (target === "confirm") {
           guild_config.resetConfig(guildId);
           logger.info(`Guild ${guildId}: Configuration reset to defaults.`, "CONFIG");
-          await interaction.update(renderHome(guildId));
+          // Re-resolve L since config was reset (language is now "auto")
+          L = resolveL(guildId, interaction.guildLocale, interaction.locale);
+          await interaction.update(renderHome(guildId, L));
         } else if (target === "cancel") {
-          await interaction.update(renderHome(guildId));
+          await interaction.update(renderHome(guildId, L));
         }
         break;
     }
   } catch (error) {
     logger.error("Error handling config button:", error, "CONFIG");
     if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: "An error occurred while updating the configuration.", flags: ["Ephemeral"] });
+      await interaction.reply({ content: L.errorGeneric, flags: ["Ephemeral"] });
     }
   }
 }
@@ -614,12 +662,16 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
   const parts = interaction.customId.split(":");
   const guildId = parts[1];
   const action = parts[2]; // "channel_select" | "role_select" | "select"
-  const target = parts[3]; // "log" | "excl_add" | "punishment_single" | etc.
+  const target = parts[3]; // "log" | "excl_add" | "punishment_single" | "language" | etc.
 
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    await interaction.reply({ content: "You don't have permission to manage server settings.", flags: ["Ephemeral"] });
+    const L = resolveL(guildId, interaction.guildLocale, interaction.locale);
+    await interaction.reply({ content: L.errorNoPermission, flags: ["Ephemeral"] });
     return;
   }
+
+  // Resolve locale (will be re-resolved after language change)
+  let L = resolveL(guildId, interaction.guildLocale, interaction.locale);
 
   try {
     switch (action) {
@@ -631,13 +683,13 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
         if (target === "log") {
           guild_config.setLogChannel(guildId, channelId);
           logger.info(`Guild ${guildId}: Log channel set to ${channelId}.`, "CONFIG");
-          await interaction.update(renderGeneral(guildId));
+          await interaction.update(renderGeneral(guildId, L));
         } else if (target === "excl_add") {
           const added = guild_config.addExcludedChannel(guildId, channelId);
           if (added) {
             logger.info(`Guild ${guildId}: Excluded channel ${channelId} from scanning.`, "CONFIG");
           }
-          await interaction.update(renderExclusions(guildId, interaction.guild!));
+          await interaction.update(renderExclusions(guildId, interaction.guild!, L));
         }
         break;
       }
@@ -652,7 +704,7 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
           if (added) {
             logger.info(`Guild ${guildId}: Excluded role ${roleId} from scanning.`, "CONFIG");
           }
-          await interaction.update(renderExclusions(guildId, interaction.guild!));
+          await interaction.update(renderExclusions(guildId, interaction.guild!, L));
         }
         break;
       }
@@ -665,23 +717,29 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
         if (target === "punishment_single") {
           guild_config.setPunishmentSingle(guildId, value as PunishmentSingle);
           logger.info(`Guild ${guildId}: Single infraction punishment set to '${value}'.`, "CONFIG");
-          await interaction.update(renderPunishments(guildId));
+          await interaction.update(renderPunishments(guildId, L));
         } else if (target === "punishment_spam") {
           guild_config.setPunishmentSpam(guildId, value as PunishmentSpam);
           logger.info(`Guild ${guildId}: Spambot punishment set to '${value}'.`, "CONFIG");
-          await interaction.update(renderPunishments(guildId));
+          await interaction.update(renderPunishments(guildId, L));
         } else if (target === "excl_channel_remove") {
           const removed = guild_config.removeExcludedChannel(guildId, value);
           if (removed) {
             logger.info(`Guild ${guildId}: Re-enabled scanning in channel ${value}.`, "CONFIG");
           }
-          await interaction.update(renderExclusions(guildId, interaction.guild!));
+          await interaction.update(renderExclusions(guildId, interaction.guild!, L));
         } else if (target === "excl_role_remove") {
           const removed = guild_config.removeExcludedRole(guildId, value);
           if (removed) {
             logger.info(`Guild ${guildId}: Re-enabled scanning for role ${value}.`, "CONFIG");
           }
-          await interaction.update(renderExclusions(guildId, interaction.guild!));
+          await interaction.update(renderExclusions(guildId, interaction.guild!, L));
+        } else if (target === "language") {
+          guild_config.setLanguage(guildId, value);
+          logger.info(`Guild ${guildId}: Language set to '${value}'.`, "CONFIG");
+          // Re-resolve locale since language just changed
+          L = resolveL(guildId, interaction.guildLocale, interaction.locale);
+          await interaction.update(renderGeneral(guildId, L));
         }
         break;
       }
@@ -689,7 +747,7 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
   } catch (error) {
     logger.error("Error handling config select:", error, "CONFIG");
     if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: "An error occurred while updating the configuration.", flags: ["Ephemeral"] });
+      await interaction.reply({ content: L.errorGeneric, flags: ["Ephemeral"] });
     }
   }
 }
@@ -703,9 +761,12 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction) {
   const target = parts[3]; // "threshold" | "spam_threshold"
 
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    await interaction.reply({ content: "You don't have permission to manage server settings.", flags: ["Ephemeral"] });
+    const L = resolveL(guildId, interaction.guildLocale, interaction.locale);
+    await interaction.reply({ content: L.errorNoPermission, flags: ["Ephemeral"] });
     return;
   }
+
+  const L = resolveL(guildId, interaction.guildLocale, interaction.locale);
 
   try {
     const rawValue = interaction.fields.getTextInputValue("value").trim();
@@ -714,7 +775,7 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction) {
       const num = Number(rawValue);
       if (isNaN(num) || num < 50 || num > 100) {
         await interaction.reply({
-          content: "❌ Invalid value. Please enter a number between **50** and **100** (e.g., `70` for 70%).",
+          content: L.errorThresholdInvalid,
           flags: ["Ephemeral"],
         });
         return;
@@ -724,14 +785,13 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction) {
       logger.info(`Guild ${guildId}: Confidence threshold set to ${normalized}.`, "CONFIG");
 
       // Modal submissions can't use .update() — they need deferUpdate + editReply
-      // or just reply. We'll reply with the updated panel.
       await interaction.deferUpdate();
-      await interaction.editReply(renderGeneral(guildId));
+      await interaction.editReply(renderGeneral(guildId, L));
     } else if (target === "spam_threshold") {
       const num = Number(rawValue);
       if (isNaN(num) || !Number.isInteger(num) || num < 0) {
         await interaction.reply({
-          content: "❌ Invalid value. Please enter a non-negative whole number (e.g., `3` for 3 infractions, `0` to disable).",
+          content: L.errorSpamThresholdInvalid,
           flags: ["Ephemeral"],
         });
         return;
@@ -740,12 +800,12 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction) {
       logger.info(`Guild ${guildId}: Spambot threshold set to ${num}.`, "CONFIG");
 
       await interaction.deferUpdate();
-      await interaction.editReply(renderPunishments(guildId));
+      await interaction.editReply(renderPunishments(guildId, L));
     }
   } catch (error) {
     logger.error("Error handling config modal:", error, "CONFIG");
     if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: "An error occurred while updating the configuration.", flags: ["Ephemeral"] });
+      await interaction.reply({ content: L.errorGeneric, flags: ["Ephemeral"] });
     }
   }
 }

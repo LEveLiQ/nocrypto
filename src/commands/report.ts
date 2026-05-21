@@ -10,6 +10,7 @@ import {
 import { scanMessageForScam } from "../utils/gemini";
 import { guild_config } from "../utils/database";
 import { logger } from "../utils/logger";
+import { getLocale, resolveLocaleKey, t, LocaleStrings } from "../i18n";
 import {
   recordInfraction,
   classifyOffender,
@@ -38,12 +39,17 @@ const COOLDOWN_DURATION = 60 * 60 * 1000; // 1 hour
 export async function handleReportCommand(interaction: MessageContextMenuCommandInteraction) {
   const guildId = interaction.guildId;
   if (!guildId || !interaction.guild) {
+    const L = getLocale("auto", null, interaction.locale);
     await interaction.reply({
-      content: "❌ This command can only be used within a server.",
+      content: L.errorNotInServer,
       ephemeral: true,
     });
     return;
   }
+
+  const config = guild_config.getConfig(guildId);
+  const localeKey = resolveLocaleKey(config.language, interaction.guildLocale, interaction.locale);
+  const L = getLocale(config.language, interaction.guildLocale, interaction.locale);
 
   // Enforce a 1-hour global cooldown per server to protect Gemini API costs
   const now = Date.now();
@@ -54,8 +60,9 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
   if (!isModerator && lastReport && (now - lastReport) < COOLDOWN_DURATION) {
     const timeLeft = COOLDOWN_DURATION - (now - lastReport);
     const minutesLeft = Math.ceil(timeLeft / (60 * 1000));
+    const pluralSuffix = minutesLeft === 1 ? "" : "s";
     await interaction.reply({
-      content: `⏱️ **Server Cooldown Active:** To protect API quotas, manual scam reporting is limited to once per hour for regular members. Try again in **${minutesLeft} minute${minutesLeft === 1 ? "" : "s"}**.\n*(Server Administrators and Moderators bypass this cooldown)*`,
+      content: t(L.reportCooldownActive, String(minutesLeft), pluralSuffix),
       ephemeral: true,
     });
     return;
@@ -90,7 +97,6 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
 
   logger.info(`On-demand manual report scan initiated by ${interaction.user.tag} for message sent by ${targetMessage.author.tag} (Msg ID: ${targetMessage.id}).`, "MONITOR");
 
-  const config = guild_config.getConfig(guildId);
   const confidenceThreshold = config.confidence_threshold;
   const logChannelId = config.log_channel_id;
 
@@ -160,7 +166,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
     }
   } else {
     logger.info(`DEDUPLICATOR: Manual report cache miss, initiating new Gemini scan...`, "MONITOR");
-    scanPromise = scanMessageForScam(content, imageUrls, confidenceThreshold);
+    scanPromise = scanMessageForScam(content, imageUrls, confidenceThreshold, localeKey);
     const newEntry = {
       promise: scanPromise,
       timestamp: now,
@@ -208,12 +214,14 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
         targetMessage.id,
         INFRACTION_WINDOW,
         confidenceThreshold,
+        localeKey,
+        L,
         entry?.flaggedChannels
       );
 
       // D. Classify the offender using the fully swept infraction history
       const infraction = userInfractions.get(targetMessage.author.id)!;
-      const classification = classifyOffender(infraction, config.spam_threshold);
+      const classification = classifyOffender(infraction, config.spam_threshold, L);
       const punishmentAction = classification.isSpammer
         ? config.punishment_spam
         : config.punishment_single;
@@ -221,7 +229,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
       logger.info(`Classification for offender after threat sweep: ${classification.label} → Punishment: ${punishmentAction}`, "MONITOR");
 
       // E. Execute final server punishment
-      let punishmentResult = "None";
+      let punishmentResult = L.punishResultNone;
       const member = targetMessage.member || await interaction.guild.members.fetch(targetMessage.author.id).catch(() => null);
 
       if (punishmentAction !== "none" && member) {
@@ -230,23 +238,22 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
           interaction.guild,
           punishmentAction,
           classification,
-          `[Manually Reported & Swept by ${interaction.user.tag}] ${result.reason}`
+          `[Manually Reported & Swept by ${interaction.user.tag}] ${result.reason}`,
+          L
         );
       }
 
       // F. Send warning to the channel where the message was reported
       try {
-        const punishmentLabel = punishmentAction === "none" ? "" : ` The user has been **${getPunishmentPastTense(punishmentAction)}**.`;
+        const punishmentLabel = punishmentAction === "none" ? "" : t(L.warnPunishmentSuffix, getPunishmentPastTense(punishmentAction, L));
         const sweepLabel = sweepResult.deletedCount > 0 
-          ? ` Retroactively swept all channels and removed **${sweepResult.deletedCount}** other scam messages.` 
+          ? t(L.warnSweepSuffix, String(sweepResult.deletedCount))
           : "";
         const warningEmbed = new EmbedBuilder()
           .setColor(classification.isSpammer ? 0xcc0000 : 0xff3333)
-          .setTitle(classification.isSpammer ? "🚨 Spambot Attack Detected" : "⚠️ Scam / Malicious Content Detected")
-          .setDescription(
-            `A message sent by **${targetMessage.author.username}** was flagged as a scam (manually reported by a member) and has been automatically removed to protect the server.${sweepLabel}${punishmentLabel}`
-          )
-          .addFields({ name: "Reason", value: result.reason })
+          .setTitle(classification.isSpammer ? L.warnTitleSpammer : L.warnTitleSingle)
+          .setDescription(t(L.warnDescriptionManual, targetMessage.author.username, sweepLabel, punishmentLabel))
+          .addFields({ name: L.warnFieldReason, value: result.reason })
           .setFooter({ text: `NoCrypto v${packageJson.version}` });
 
         const warnMessage = await (interaction.channel as TextChannel).send({ embeds: [warningEmbed] });
@@ -294,17 +301,17 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
                     const updatedEmbed = EmbedBuilder.from(existingEmbed);
 
                     const fields = existingEmbed.fields.map((f) => {
-                      if (f.name === "Channel" || f.name === "Channels") {
-                        return { name: "Channels", value: channelsList, inline: false };
+                      if (f.name === L.logFieldChannels || f.name === "Channel" || f.name === "Channels") {
+                        return { name: L.logFieldChannels, value: channelsList, inline: false };
                       }
-                      if (f.name === "Status") {
-                        return { name: "Status", value: "Deleted (All Spans)", inline: true };
+                      if (f.name === L.logFieldStatus || f.name === "Status") {
+                        return { name: L.logFieldStatus, value: L.logStatusDeletedAllSpans, inline: true };
                       }
-                      if (f.name === "Classification") {
-                        return { name: "Classification", value: `${classification.label} (Manual Report + Threat Sweep)`, inline: false };
+                      if (f.name === L.logFieldClassification || f.name === "Classification") {
+                        return { name: L.logFieldClassification, value: `${classification.label}${L.logClassificationManualSuffix}`, inline: false };
                       }
-                      if (f.name === "Punishment") {
-                        return { name: "Punishment", value: punishmentResult, inline: true };
+                      if (f.name === L.logFieldPunishment || f.name === "Punishment") {
+                        return { name: L.logFieldPunishment, value: punishmentResult, inline: true };
                       }
                       return f;
                     });
@@ -313,7 +320,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
 
                     if (classification.isSpammer) {
                       updatedEmbed.setColor(0x8b0000);
-                      updatedEmbed.setTitle("🚨 Spambot Attack Flagged (Manual Report + Threat Sweep)");
+                      updatedEmbed.setTitle(L.logTitleManualSpambot);
                     }
 
                     await existingLogMsg.edit({ embeds: [updatedEmbed] });
@@ -327,21 +334,21 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
 
                 const logEmbed = new EmbedBuilder()
                   .setColor(classification.isSpammer ? 0x8b0000 : 0xdc3545)
-                  .setTitle(classification.isSpammer ? "🚨 Spambot Attack Flagged (Manual Report + Sweep)" : "🚨 Scam Alert Flagged (Manual Report)")
+                  .setTitle(classification.isSpammer ? L.logTitleManualSpambot : L.logTitleManualScam)
                   .addFields(
-                    { name: "Sender", value: `${targetMessage.author.tag} (<@${targetMessage.author.id}>)`, inline: true },
-                    { name: "Reporter", value: `${interaction.user.tag} (<@${interaction.user.id}>)`, inline: true },
-                    { name: "Channels", value: channelsList, inline: false },
-                    { name: "Confidence", value: `${(result.confidence * 100).toFixed(0)}%`, inline: true },
-                    { name: "Status", value: messageDeleted ? "Deleted" : "Deletion Failed / No Permission", inline: true },
-                    { name: "Classification", value: `${classification.label} (Manual Report + Threat Sweep)`, inline: false },
-                    { name: "Punishment", value: punishmentResult, inline: true },
-                    { name: "Reason", value: result.reason }
+                    { name: L.logFieldSender, value: `${targetMessage.author.tag} (<@${targetMessage.author.id}>)`, inline: true },
+                    { name: L.logFieldReporter, value: `${interaction.user.tag} (<@${interaction.user.id}>)`, inline: true },
+                    { name: L.logFieldChannels, value: channelsList, inline: false },
+                    { name: L.logFieldConfidence, value: `${(result.confidence * 100).toFixed(0)}%`, inline: true },
+                    { name: L.logFieldStatus, value: messageDeleted ? L.logStatusDeleted : L.logStatusFailed, inline: true },
+                    { name: L.logFieldClassification, value: `${classification.label}${L.logClassificationManualSuffix}`, inline: false },
+                    { name: L.logFieldPunishment, value: punishmentResult, inline: true },
+                    { name: L.logFieldReason, value: result.reason }
                   )
                   .setFooter({ text: `NoCrypto v${packageJson.version}` });
 
                 if (sweepResult.deletedCount > 0) {
-                  logEmbed.addFields({ name: "Threat Sweep Clean-up", value: `Successfully deleted **${sweepResult.deletedCount}** other copies of this scam in active channels.` });
+                  logEmbed.addFields({ name: L.logFieldSweepCleanup, value: t(L.logFieldSweepCleanup, String(sweepResult.deletedCount)) });
                 }
 
                 if (content) {
@@ -349,14 +356,14 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
                   const truncatedText = content.length > maxContentLength
                     ? content.substring(0, maxContentLength - 3) + "..."
                     : content;
-                  logEmbed.addFields({ name: "Message Content", value: `\`\`\`\n${truncatedText}\n\`\`\`` });
+                  logEmbed.addFields({ name: L.logFieldMessageContent, value: `\`\`\`\n${truncatedText}\n\`\`\`` });
                 }
 
                 if (imageAttachments.size > 0) {
                   const imageLinks = Array.from(imageAttachments.values())
                     .map((att, idx) => `[Image ${idx + 1}](${att.url})`)
                     .join(", ");
-                  logEmbed.addFields({ name: "Flagged Image Files", value: imageLinks });
+                  logEmbed.addFields({ name: L.logFieldFlaggedImages, value: imageLinks });
 
                   const firstImage = imageAttachments.first();
                   if (firstImage) {
@@ -377,23 +384,23 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
 
       // H. Ephemerally reply to the reporter confirming it was handled and clean-up details
       const sweepReportLabel = sweepResult.deletedCount > 0 
-        ? `\n\n🧹 **Retroactive Threat Sweep:** Successfully scanned active server channels and purged **${sweepResult.deletedCount}** other copies of this scam!` 
+        ? t(L.reportSweepSuffix, String(sweepResult.deletedCount))
         : "";
       await interaction.editReply({
-        content: `⚠️ **Scam Detected!**\nThe message from **${targetMessage.author.username}** was flagged as a scam with **${(result.confidence * 100).toFixed(0)}%** confidence and has been automatically removed.${sweepReportLabel}\n\n**Reason:** *${result.reason}*`,
+        content: t(L.reportScamDetected, targetMessage.author.username, (result.confidence * 100).toFixed(0), sweepReportLabel, result.reason),
       });
     } else {
       // Safe! Ephemerally reply to the reporter
       logger.info(`On-demand scan marked message SAFE: Guild ${interaction.guild.name} | Sender: ${targetMessage.author.tag} | Reported by: ${interaction.user.tag}.`, "MONITOR");
 
       await interaction.editReply({
-        content: `✅ **No Scam Detected**\nWe analyzed the reported message and it appears to be safe.\n\n**Safety Confidence:** **${(100 - result.confidence * 100).toFixed(0)}%** safe.\n**Analysis Reason:** *${result.reason}*`,
+        content: t(L.reportSafeResult, (100 - result.confidence * 100).toFixed(0), result.reason),
       });
     }
   } catch (error) {
     logger.error("Error executing manual report scam scan:", error, "MONITOR");
     await interaction.editReply({
-      content: `❌ **Scan Failed:** An error occurred while processing the report: ${error instanceof Error ? error.message : String(error)}`,
+      content: t(L.reportError, error instanceof Error ? error.message : String(error)),
     });
   }
 }
@@ -408,6 +415,8 @@ async function sweepRecentMessagesFromOffender(
   targetMsgId: string,
   timeframeMs: number,
   confidenceThreshold: number,
+  localeKey: string,
+  L: LocaleStrings,
   flaggedChannels?: string[]
 ): Promise<{ sweptCount: number; deletedCount: number }> {
   logger.info(`RETROACTIVE SWEEP: Initiating sweep for user ${offenderId} messages sent in the last 5 minutes...`, "MONITOR");
@@ -453,7 +462,7 @@ async function sweepRecentMessagesFromOffender(
         ];
 
         // Scan the message (uses our shared memory cache, making duplicate scans instant/free!)
-        const scanResult = await scanMessageForScam(content, imageUrls, confidenceThreshold);
+        const scanResult = await scanMessageForScam(content, imageUrls, confidenceThreshold, localeKey);
 
         if (scanResult.isScam && scanResult.confidence >= confidenceThreshold) {
           // A. Record infraction in that channel to update sliding infraction window
