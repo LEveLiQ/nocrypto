@@ -21,7 +21,7 @@ import {
   type MessageActionRowComponentBuilder,
   type AnySelectMenuInteraction,
 } from "discord.js";
-import { guild_config, GuildConfig, PunishmentSingle, PunishmentSpam } from "../utils/database";
+import { guild_config, GuildConfig, PunishmentSingle, PunishmentSpam, ScanMemberAgeThreshold } from "../utils/database";
 import { logger } from "../utils/logger";
 import { getLocale, t, getLanguageDisplayName, LocaleStrings } from "../i18n";
 import packageJson from "../../package.json";
@@ -47,6 +47,13 @@ function formatPunishment(action: string, tier: "single" | "spam", L: LocaleStri
   if (action === "kick") return L.punishLabelKick;
   if (action === "ban") return L.punishLabelBan;
   return action;
+}
+
+function formatScanMemberAgeThreshold(value: string, L: LocaleStrings): string {
+  if (value === "1w") return L.configValScanMemberAge1w;
+  if (value === "1m") return L.configValScanMemberAge1m;
+  if (value === "6m") return L.configValScanMemberAge6m;
+  return L.configValScanMemberAgeAll;
 }
 
 // ─── Dashboard Embed ─────────────────────────────────────────────────────────
@@ -107,6 +114,11 @@ function buildDashboardEmbed(
         inline: true,
       },
       {
+        name: L.configFieldScanMemberAgeThreshold,
+        value: formatScanMemberAgeThreshold(config.scan_member_age_threshold, L),
+        inline: true,
+      },
+      {
         name: L.configFieldExcludedChannels,
         value: excludedChannels.length > 0
           ? excludedChannels.map((id) => `<#${id}>`).join(", ")
@@ -151,6 +163,11 @@ function buildHomeComponents(
       .setCustomId(`cfg:${guildId}:cat:exclusions`)
       .setLabel(L.configBtnExclusions)
       .setEmoji("🚫")
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`cfg:${guildId}:cat:targeting`)
+      .setLabel(L.configBtnTargeting)
+      .setEmoji("🎯")
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(`cfg:${guildId}:cat:reset`)
@@ -433,6 +450,58 @@ function buildExclusionsComponents(
   return rows;
 }
 
+function buildTargetingComponents(
+  guildId: string,
+  config: GuildConfig,
+  L: LocaleStrings
+): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
+  const rows: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+
+  // Row 1: String select menu for age threshold
+  rows.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`cfg:${guildId}:select:scan_member_age_threshold`)
+        .setPlaceholder(L.configSelectScanMemberAgeThreshold)
+        .addOptions(
+          new StringSelectMenuOptionBuilder()
+            .setLabel(L.configValScanMemberAgeAll)
+            .setValue("all")
+            .setEmoji("🌐")
+            .setDefault(config.scan_member_age_threshold === "all"),
+          new StringSelectMenuOptionBuilder()
+            .setLabel(L.configValScanMemberAge1w)
+            .setValue("1w")
+            .setEmoji("⏱️")
+            .setDefault(config.scan_member_age_threshold === "1w"),
+          new StringSelectMenuOptionBuilder()
+            .setLabel(L.configValScanMemberAge1m)
+            .setValue("1m")
+            .setEmoji("📅")
+            .setDefault(config.scan_member_age_threshold === "1m"),
+          new StringSelectMenuOptionBuilder()
+            .setLabel(L.configValScanMemberAge6m)
+            .setValue("6m")
+            .setEmoji("⏳")
+            .setDefault(config.scan_member_age_threshold === "6m"),
+        )
+    )
+  );
+
+  // Row 2: Back button
+  rows.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`cfg:${guildId}:home`)
+        .setLabel(L.configBtnBack)
+        .setEmoji("◀️")
+        .setStyle(ButtonStyle.Secondary),
+    )
+  );
+
+  return rows;
+}
+
 function buildResetComponents(
   guildId: string,
   L: LocaleStrings
@@ -497,6 +566,16 @@ function renderExclusions(guildId: string, guild: Guild, L: LocaleStrings) {
       buildDashboardEmbed(config, guildId, L, L.configDescExclusions),
     ],
     components: buildExclusionsComponents(guildId, config, guild, L),
+  };
+}
+
+function renderTargeting(guildId: string, L: LocaleStrings) {
+  const config = guild_config.getConfig(guildId);
+  return {
+    embeds: [
+      buildDashboardEmbed(config, guildId, L, L.configDescTargeting),
+    ],
+    components: buildTargetingComponents(guildId, config, L),
   };
 }
 
@@ -569,6 +648,9 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
             break;
           case "exclusions":
             await interaction.update(renderExclusions(guildId, interaction.guild!, L));
+            break;
+          case "targeting":
+            await interaction.update(renderTargeting(guildId, L));
             break;
           case "reset":
             await interaction.update(renderReset(guildId, L));
@@ -746,6 +828,10 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
           // Re-resolve locale since language just changed
           L = resolveL(guildId, interaction.guildLocale, interaction.locale);
           await interaction.update(renderGeneral(guildId, L));
+        } else if (target === "scan_member_age_threshold") {
+          guild_config.setScanMemberAgeThreshold(guildId, value as ScanMemberAgeThreshold);
+          logger.info(`Guild ${guildId}: Scan member age threshold set to '${value}'.`, "CONFIG");
+          await interaction.update(renderTargeting(guildId, L));
         }
         break;
       }

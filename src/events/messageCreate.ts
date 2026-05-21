@@ -102,7 +102,29 @@ export async function onMessageCreate(message: Message, client: Client) {
     if (hasExcludedRole) return;
   }
 
-  // 6. Determine scanning decisions from per-guild config
+  // 6. Check member age threshold if configured
+  if (config.scan_member_age_threshold && config.scan_member_age_threshold !== 'all' && message.member) {
+    const joinedAt = message.member.joinedAt;
+    if (joinedAt) {
+      const memberAgeMs = Date.now() - joinedAt.getTime();
+      let thresholdMs = 0;
+      if (config.scan_member_age_threshold === '1w') {
+        thresholdMs = 7 * 24 * 60 * 60 * 1000;
+      } else if (config.scan_member_age_threshold === '1m') {
+        thresholdMs = 30 * 24 * 60 * 60 * 1000;
+      } else if (config.scan_member_age_threshold === '6m') {
+        thresholdMs = 180 * 24 * 60 * 60 * 1000;
+      }
+
+      if (thresholdMs > 0 && memberAgeMs > thresholdMs) {
+        // Member has been in the server longer than the configured threshold - skip scan
+        logger.info(`Skipping message scan for ${message.author.tag} because they joined the server on ${joinedAt.toDateString()} (threshold: ${config.scan_member_age_threshold})`, "MONITOR");
+        return;
+      }
+    }
+  }
+
+  // 7. Determine scanning decisions from per-guild config
   const SCAN_IMAGES = !!config.scan_images;
   const SCAN_LINKS = !!config.scan_links;
   const CONFIDENCE_THRESHOLD = config.confidence_threshold;

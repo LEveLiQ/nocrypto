@@ -46,7 +46,8 @@ function initializeDatabase() {
         punishment_single TEXT DEFAULT 'none',
         punishment_spam TEXT DEFAULT 'ban',
         spam_threshold INTEGER DEFAULT 3,
-        language TEXT DEFAULT 'auto'
+        language TEXT DEFAULT 'auto',
+        scan_member_age_threshold TEXT DEFAULT 'all'
       );
     `);
     console.log('Database initialized successfully at:', dbPath);

@@ -23,7 +23,8 @@ db.exec(`
     punishment_single TEXT DEFAULT 'none',
     punishment_spam TEXT DEFAULT 'ban',
     spam_threshold INTEGER DEFAULT 3,
-    language TEXT DEFAULT 'auto'
+    language TEXT DEFAULT 'auto',
+    scan_member_age_threshold TEXT DEFAULT 'all'
   );
 `);
 
@@ -40,9 +41,13 @@ try {
 try {
   db.exec(`ALTER TABLE guild_config ADD COLUMN language TEXT DEFAULT 'auto';`);
 } catch (_) { /* Column already exists */ }
+try {
+  db.exec(`ALTER TABLE guild_config ADD COLUMN scan_member_age_threshold TEXT DEFAULT 'all';`);
+} catch (_) { /* Column already exists */ }
 
 export type PunishmentSingle = 'none' | 'timeout';
 export type PunishmentSpam = 'timeout' | 'kick' | 'ban';
+export type ScanMemberAgeThreshold = 'all' | '1w' | '1m' | '6m';
 
 export interface GuildConfig {
   guild_id: string;
@@ -56,6 +61,7 @@ export interface GuildConfig {
   punishment_spam: PunishmentSpam;
   spam_threshold: number;
   language: string;          // 'auto' | 'en-US' | 'ko'
+  scan_member_age_threshold: ScanMemberAgeThreshold;
 }
 
 const guild_config = {
@@ -180,6 +186,13 @@ const guild_config = {
     return db.prepare(`
       UPDATE guild_config SET language = ? WHERE guild_id = ?
     `).run(lang, guildId);
+  },
+
+  setScanMemberAgeThreshold(guildId: string, threshold: ScanMemberAgeThreshold) {
+    guild_config.getConfig(guildId);
+    return db.prepare(`
+      UPDATE guild_config SET scan_member_age_threshold = ? WHERE guild_id = ?
+    `).run(threshold, guildId);
   },
 
   resetConfig(guildId: string) {

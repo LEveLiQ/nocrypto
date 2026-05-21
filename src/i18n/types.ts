@@ -21,6 +21,7 @@ export interface LocaleStrings {
   configFieldExcludedChannels: string;
   configFieldExcludedRoles: string;
   configFieldLanguage: string;
+  configFieldScanMemberAgeThreshold: string;
   configValueNotSet: string;
   configValueEnabled: string;
   configValueDisabled: string;
@@ -31,11 +32,13 @@ export interface LocaleStrings {
   configDescGeneral: string;
   configDescPunishments: string;
   configDescExclusions: string;
+  configDescTargeting: string;
   configDescReset: string;
   // Buttons
   configBtnGeneral: string;
   configBtnPunishments: string;
   configBtnExclusions: string;
+  configBtnTargeting: string;
   configBtnResetAll: string;
   configBtnBack: string;
   configBtnClearLogChannel: string;
@@ -57,8 +60,14 @@ export interface LocaleStrings {
   configSelectAddRole: string;
   configSelectRemoveRole: string;
   configSelectLanguage: string;
+  configSelectScanMemberAgeThreshold: string;
   configBtnNoExcludedChannels: string;
   configBtnNoExcludedRoles: string;
+  // Scan Member Age option labels
+  configValScanMemberAgeAll: string;
+  configValScanMemberAge1w: string;
+  configValScanMemberAge1m: string;
+  configValScanMemberAge6m: string;
   // Language select options
   configLangAuto: string;    // "Auto (Discord Setting)"
   configLangEnUS: string;    // "English"
