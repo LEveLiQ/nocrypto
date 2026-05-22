@@ -120,7 +120,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
 
   logger.info(`Report initiated for msg by @${targetMessage.author.tag} (ID: ${targetMessage.id}).`, "MONITOR", scanContext);
 
-  const confidenceThreshold = config.confidence_threshold;
+  const confidenceThreshold = config.scam_probability_threshold;
   const logChannelId = config.log_channel_id;
 
   // 1. Build cache keys (including MD5 text hash to cover linkless messages!)
@@ -360,7 +360,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
                     { name: L.logFieldSender, value: `${targetMessage.author.tag} (<@${targetMessage.author.id}>)`, inline: true },
                     { name: L.logFieldReporter, value: `${interaction.user.tag} (<@${interaction.user.id}>)`, inline: true },
                     { name: L.logFieldChannels, value: channelsList, inline: false },
-                    { name: L.logFieldConfidence, value: `${(result.confidence * 100).toFixed(0)}%`, inline: true },
+                    { name: L.logFieldScamProbability, value: `${(result.confidence * 100).toFixed(0)}%`, inline: true },
                     { name: L.logFieldStatus, value: messageDeleted ? L.logStatusDeleted : L.logStatusFailed, inline: true },
                     { name: L.logFieldClassification, value: `${classification.label}${L.logClassificationManualSuffix}`, inline: false },
                     { name: L.logFieldPunishment, value: punishmentResult, inline: true },

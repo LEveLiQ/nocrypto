@@ -151,9 +151,9 @@ export async function scanMessageForScam(
     const result: ScamScanResult = JSON.parse(responseText.trim());
 
     if (result.isScam) {
-      logger.warn(`Flagged scam (Confidence: ${(result.confidence * 100).toFixed(0)}%). Reason: ${result.reason}`, "GEMINI", scanContext);
+      logger.warn(`Flagged scam (Scam Probability: ${(result.confidence * 100).toFixed(0)}%). Reason: ${result.reason}`, "GEMINI", scanContext);
     } else {
-      logger.info(`SAFE (Confidence: ${(100 - result.confidence * 100).toFixed(0)}% safe).`, "GEMINI", scanContext);
+      logger.info(`SAFE (Scam Probability: ${((1 - result.confidence) * 100).toFixed(0)}%).`, "GEMINI", scanContext);
     }
 
     return result;

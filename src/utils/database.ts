@@ -17,7 +17,7 @@ db.exec(`
     log_channel_id TEXT,
     scan_images INTEGER DEFAULT 1,
     scan_links INTEGER DEFAULT 1,
-    confidence_threshold REAL DEFAULT 0.70,
+    scam_probability_threshold REAL DEFAULT 0.70,
     excluded_channels TEXT DEFAULT '[]',
     excluded_roles TEXT DEFAULT '[]',
     excluded_urls TEXT DEFAULT '[]',
@@ -58,7 +58,7 @@ export interface GuildConfig {
   log_channel_id: string | null;
   scan_images: number;       // 1 = true, 0 = false (SQLite doesn't have booleans)
   scan_links: number;
-  confidence_threshold: number;
+  scam_probability_threshold: number;
   excluded_channels: string; // JSON array string
   excluded_roles: string;    // JSON array string
   excluded_urls: string;     // JSON array string
@@ -112,10 +112,10 @@ const guild_config = {
     `).run(enabled ? 1 : 0, guildId);
   },
 
-  setThreshold(guildId: string, value: number) {
+  setScamProbabilityThreshold(guildId: string, value: number) {
     guild_config.getConfig(guildId);
     return db.prepare(`
-      UPDATE guild_config SET confidence_threshold = ? WHERE guild_id = ?
+      UPDATE guild_config SET scam_probability_threshold = ? WHERE guild_id = ?
     `).run(value, guildId);
   },
 

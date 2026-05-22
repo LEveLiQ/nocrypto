@@ -88,8 +88,8 @@ function buildDashboardEmbed(
         inline: true,
       },
       {
-        name: L.configFieldConfidenceThreshold,
-        value: `${(config.confidence_threshold * 100).toFixed(0)}%`,
+        name: L.configFieldScamProbabilityThreshold,
+        value: `${(config.scam_probability_threshold * 100).toFixed(0)}%`,
         inline: true,
       },
       {
@@ -259,7 +259,7 @@ function buildGeneralComponents(
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`cfg:${guildId}:modal_open:threshold`)
-        .setLabel(t(L.configBtnThreshold, (config.confidence_threshold * 100).toFixed(0)))
+        .setLabel(t(L.configBtnThreshold, (config.scam_probability_threshold * 100).toFixed(0)))
         .setEmoji("🎯")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
@@ -708,7 +708,7 @@ export async function handleConfigButton(interaction: ButtonInteraction) {
                 new TextInputBuilder()
                   .setCustomId("value")
                   .setLabel(L.modalThresholdLabel)
-                  .setPlaceholder(t(L.modalThresholdPlaceholder, (config.confidence_threshold * 100).toFixed(0)))
+                  .setPlaceholder(t(L.modalThresholdPlaceholder, (config.scam_probability_threshold * 100).toFixed(0)))
                   .setStyle(TextInputStyle.Short)
                   .setMinLength(2)
                   .setMaxLength(3)
@@ -871,7 +871,7 @@ export async function handleConfigSelect(interaction: AnySelectMenuInteraction) 
           await interaction.update(renderGeneral(guildId, L));
         } else if (target === "scan_member_age_threshold") {
           guild_config.setScanMemberAgeThreshold(guildId, value as ScanMemberAgeThreshold);
-          logger.info(`Scan member age threshold set to '${value}'.`, logCtx);
+          logger.info(`Scan member age threshold set to '${value}'.`, "CONFIG", logCtx);
           await interaction.update(renderTargeting(guildId, L));
         }
         break;
@@ -915,8 +915,8 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction) {
         return;
       }
       const normalized = num / 100;
-      guild_config.setThreshold(guildId, normalized);
-      logger.info(`Confidence threshold set to ${normalized}.`, "CONFIG", logCtx);
+      guild_config.setScamProbabilityThreshold(guildId, normalized);
+      logger.info(`Scam probability threshold set to ${normalized}.`, "CONFIG", logCtx);
 
       // Modal submissions can't use .update() — they need deferUpdate + editReply
       await interaction.deferUpdate();

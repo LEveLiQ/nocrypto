@@ -137,7 +137,7 @@ export async function onMessageCreate(message: Message, client: Client) {
   // 8. Determine scanning decisions from per-guild config
   const SCAN_IMAGES = !!config.scan_images;
   const SCAN_LINKS = !!config.scan_links;
-  const CONFIDENCE_THRESHOLD = config.confidence_threshold;
+  const CONFIDENCE_THRESHOLD = config.scam_probability_threshold;
   const logChannelId = config.log_channel_id;
 
   // 9. Identify image attachments AND image URLs embedded in message text
@@ -385,7 +385,7 @@ export async function onMessageCreate(message: Message, client: Client) {
                     { name: L.logFieldSender, value: `${message.author.tag} (<@${message.author.id}>)`, inline: true },
                     { name: "User ID", value: message.author.id, inline: true },
                     { name: L.logFieldChannels, value: channelsList, inline: false },
-                    { name: L.logFieldConfidence, value: `${(scanResult.confidence * 100).toFixed(0)}%`, inline: true },
+                    { name: L.logFieldScamProbability, value: `${(scanResult.confidence * 100).toFixed(0)}%`, inline: true },
                     { name: L.logFieldStatus, value: messageDeleted ? L.logStatusDeleted : L.logStatusFailed, inline: true },
                     { name: L.logFieldClassification, value: classification.label, inline: false },
                     { name: L.logFieldPunishment, value: punishmentResult, inline: true },

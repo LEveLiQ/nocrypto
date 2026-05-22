@@ -14,7 +14,7 @@ export interface LocaleStrings {
   configFieldLogChannel: string;
   configFieldScanImages: string;
   configFieldScanLinks: string;
-  configFieldConfidenceThreshold: string;
+  configFieldScamProbabilityThreshold: string;
   configFieldSingleInfraction: string;
   configFieldSpambotPunishment: string;
   configFieldSpambotThreshold: string;
@@ -180,7 +180,7 @@ export interface LocaleStrings {
   logFieldSender: string;
   logFieldReporter: string;
   logFieldChannels: string;
-  logFieldConfidence: string;
+  logFieldScamProbability: string;
   logFieldStatus: string;
   logFieldClassification: string;
   logFieldPunishment: string;

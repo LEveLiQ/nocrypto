@@ -40,7 +40,7 @@ function initializeDatabase() {
         log_channel_id TEXT,
         scan_images INTEGER DEFAULT 1,
         scan_links INTEGER DEFAULT 1,
-        confidence_threshold REAL DEFAULT 0.70,
+        scam_probability_threshold REAL DEFAULT 0.70,
         excluded_channels TEXT DEFAULT '[]',
         excluded_roles TEXT DEFAULT '[]',
         excluded_urls TEXT DEFAULT '[]',
