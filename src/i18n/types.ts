@@ -168,8 +168,7 @@ export interface LocaleStrings {
 
   // ── Classification labels ─────────────────────────────────────────────
   classifySingle: string;
-  classifyActiveSpammer: string;    // "Active Spammer (%s channels, %s infractions)"
-  classifyRepeatOffender: string;   // "Repeat Offender (%s infractions in same channel)"
+  classifySpambot: string;    // "Spambot (%s infractions)"
 
   // ── Admin Log Embed ───────────────────────────────────────────────────
   logTitleScam: string;

@@ -53,7 +53,7 @@ export function classifyOffender(record: UserInfraction, spamThreshold: number, 
     return { isSpammer: false, label: L.classifySingle };
   }
   if (record.count >= spamThreshold) {
-    return { isSpammer: true, label: t(L.classifyRepeatOffender, record.count) };
+    return { isSpammer: true, label: t(L.classifySpambot, record.count) };
   }
   return { isSpammer: false, label: L.classifySingle };
 }

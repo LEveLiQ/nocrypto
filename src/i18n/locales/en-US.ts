@@ -199,8 +199,7 @@ You must respond in strict JSON format matching this exact schema:
 
   // ── Classification labels ─────────────────────────────────────────────
   classifySingle: "Single Infraction",
-  classifyActiveSpammer: "Active Spammer (%s channels, %s infractions)",
-  classifyRepeatOffender: "Repeat Offender (%s infractions in same channel)",
+  classifySpambot: "Spambot (%s infractions)",
 
   // ── Admin Log Embed ───────────────────────────────────────────────────
   logTitleScam: "🚨 Scam Alert Flagged",

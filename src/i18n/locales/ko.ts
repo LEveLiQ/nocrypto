@@ -204,8 +204,7 @@ export const ko: LocaleStrings = {
 
   // ── 분류 라벨 ─────────────────────────────────────────────────────────
   classifySingle: "단일 위반",
-  classifyActiveSpammer: "스팸봇 (%s개 채널, %s회 위반)",
-  classifyRepeatOffender: "반복 위반자 (같은 채널에서 %s회 위반)",
+  classifySpambot: "스팸봇 (%s회 위반)",
 
   // ── 관리자 로그 임베드 ─────────────────────────────────────────────────
   logTitleScam: "🚨 스팸 알림",
