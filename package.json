@@ -1,6 +1,6 @@
 {
   "name": "discord-nocrypto",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Discord bot to automatically scan sent media for scam and phishing patterns using Google Gemini",
   "main": "src/index.ts",
   "scripts": {
