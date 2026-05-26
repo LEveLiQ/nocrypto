@@ -134,7 +134,6 @@ export async function scanMessageForScam(
   confidenceThreshold: number = 0.70,
   locale: string = "en-US",
   scanContext?: string,
-  keysSummary?: string
 ): Promise<ScamScanResult> {
   if (!ai) {
     logger.warn("Gemini client is not initialized, skipping scam scan.", "GEMINI");
@@ -150,11 +149,7 @@ export async function scanMessageForScam(
     if (textContent) {
       details.push(`Text: ${textContent.length} chars`);
     }
-    if (keysSummary) {
-      details.push(`Keys: ${keysSummary}`);
-    }
     const detailsStr = details.length > 0 ? ` │ ${details.join(" │ ")}` : "";
-    logger.info(`Starting scan...${detailsStr}`, "GEMINI", scanContext);
 
     // Use the locale-specific system prompt, with confidence threshold interpolated
     const localeData = LOCALES[locale] ?? LOCALES["en-US"];
@@ -228,9 +223,9 @@ export async function scanMessageForScam(
     const result: ScamScanResult = JSON.parse(responseText.trim());
 
     if (result.isScam) {
-      logger.warn(`Flagged scam (Scam Probability: ${(result.confidence * 100).toFixed(0)}%). Reason: ${result.reason}`, "GEMINI", scanContext);
+      logger.warn(`Flagged scam (Scam Probability: ${(result.confidence * 100).toFixed(0)}%)${detailsStr}. Reason: ${result.reason}`, "GEMINI", scanContext);
     } else {
-      logger.info(`SAFE (Scam Probability: ${((1 - result.confidence) * 100).toFixed(0)}%).`, "GEMINI", scanContext);
+      logger.info(`SAFE (Scam Probability: ${((1 - result.confidence) * 100).toFixed(0)}%)${detailsStr}.`, "GEMINI", scanContext);
     }
 
     return result;

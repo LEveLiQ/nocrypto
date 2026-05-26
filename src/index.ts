@@ -5,6 +5,8 @@ import {
   ChatInputCommandInteraction,
 } from "discord.js";
 import * as dotenv from "dotenv";
+import { execSync } from "child_process";
+import packageJson from "../package.json";
 import { logger } from "./utils/logger";
 import { initGemini } from "./utils/gemini";
 import { onReady } from "./events/ready";
@@ -18,13 +20,17 @@ import { MessageContextMenuCommandInteraction } from "discord.js";
 // Load environment variables
 dotenv.config();
 
-// Print a welcoming startup banner
-console.log(`
-\x1b[35m\x1b[1m====================================================
-           DISCORD SCAM-SCANNER (NOCRYPTO)          
-           Powered by Gemini & Discord.js           
-====================================================\x1b[0m
-`);
+// Get current git commit hash dynamically
+let commitHash = "";
+try {
+  commitHash = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+    .toString()
+    .trim();
+} catch (e) {
+  // Fallback if git is not available
+}
+
+console.log(`NoCrypto v${packageJson.version}${commitHash ? ` (${commitHash})` : ""}`);
 
 // Initialize Gemini SDK
 initGemini();

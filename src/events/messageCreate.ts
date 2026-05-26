@@ -115,7 +115,6 @@ export async function onMessageCreate(message: Message, client: Client) {
 
       if (thresholdMs > 0 && memberAgeMs > thresholdMs) {
         // Member has been in the server longer than the configured threshold - skip scan
-        logger.info(`Skipping message scan because they joined the server on ${joinedAt.toDateString()} (threshold: ${config.scan_member_age_threshold})`, "MONITOR", scanContext);
         return;
       }
     }
@@ -237,8 +236,7 @@ export async function onMessageCreate(message: Message, client: Client) {
       }
     }
   } else {
-    const keysSummary = allKeys.join(", ");
-    scanPromise = scanMessageForScam(textContent, imageUrls, CONFIDENCE_THRESHOLD, localeKey, scanContext, keysSummary);
+    scanPromise = scanMessageForScam(textContent, imageUrls, CONFIDENCE_THRESHOLD, localeKey, scanContext);
     const newEntry: CacheEntry = {
       promise: scanPromise,
       timestamp: now,

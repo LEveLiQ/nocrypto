@@ -187,8 +187,7 @@ export async function handleReportCommand(interaction: MessageContextMenuCommand
       }
     }
   } else {
-    const keysSummary = allKeys.join(", ");
-    scanPromise = scanMessageForScam(content, imageUrls, confidenceThreshold, localeKey, scanContext, keysSummary);
+    scanPromise = scanMessageForScam(content, imageUrls, confidenceThreshold, localeKey, scanContext);
     const newEntry = {
       promise: scanPromise,
       timestamp: now,
