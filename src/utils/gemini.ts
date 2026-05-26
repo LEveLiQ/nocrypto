@@ -26,6 +26,82 @@ export interface ScamScanResult {
   reason: string;
 }
 
+const DISCORD_CDN_REGEX = /^https?:\/\/(?:cdn\.discordapp\.com|media\.discordapp\.net)\/attachments\//i;
+
+/**
+ * Checks if a given URL is a Discord CDN link and if it is expired or missing signature parameters.
+ */
+function doesDiscordCdnUrlNeedRefresh(url: string): boolean {
+  if (!DISCORD_CDN_REGEX.test(url)) {
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    const ex = parsed.searchParams.get("ex");
+    const is = parsed.searchParams.get("is");
+    const hm = parsed.searchParams.get("hm");
+    if (!ex || !is || !hm) {
+      return true; // Missing signatures
+    }
+    const expiryMs = parseInt(ex, 16) * 1000;
+    // If it's expired or expires in less than 5 minutes (300 seconds), refresh it!
+    if (isNaN(expiryMs) || Date.now() >= expiryMs - 300 * 1000) {
+      return true;
+    }
+  } catch {
+    return true; // Try refreshing just in case
+  }
+  return false;
+}
+
+/**
+ * Refreshes expired or signatureless Discord CDN attachment URLs in a single batch API call.
+ */
+async function refreshDiscordCdnUrls(urls: string[]): Promise<string[]> {
+  const urlsToRefresh = urls.filter(doesDiscordCdnUrlNeedRefresh);
+  if (urlsToRefresh.length === 0) {
+    return urls;
+  }
+
+  const token = process.env.DISCORD_TOKEN;
+  if (!token) {
+    logger.warn("DISCORD_TOKEN is not available. Skipping attachment URL refresh.", "GEMINI");
+    return urls;
+  }
+
+  try {
+    logger.info(`Refreshing ${urlsToRefresh.length} Discord attachment URL(s)...`, "GEMINI");
+    const response = await fetch("https://discord.com/api/v10/attachments/refresh-urls", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bot ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        attachment_urls: urlsToRefresh,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Discord API returned ${response.status} ${response.statusText}`);
+    }
+
+    const result = (await response.json()) as {
+      refreshed_urls: { original: string; refreshed: string }[];
+    };
+
+    const refreshMap = new Map<string, string>();
+    for (const item of result.refreshed_urls) {
+      refreshMap.set(item.original, item.refreshed);
+    }
+
+    return urls.map((url) => refreshMap.get(url) || url);
+  } catch (error) {
+    logger.warn(`Failed to refresh Discord attachment URLs: ${error instanceof Error ? error.message : String(error)}`, "GEMINI");
+    return urls; // Fallback to original URLs on failure
+  }
+}
+
 /**
  * Downloads a media attachment from a URL and converts it to base64.
  */
@@ -43,7 +119,7 @@ async function downloadAttachmentAsBase64(url: string): Promise<{ data: string; 
       mimeType,
     };
   } catch (error) {
-    logger.error(`Failed to download attachment from ${url}:`, error, "GEMINI");
+    logger.warn(`Failed to download attachment from ${url}: ${error instanceof Error ? error.message : String(error)}`, "GEMINI");
     return null;
   }
 }
@@ -88,7 +164,8 @@ export async function scanMessageForScam(
 
     // 1. If images are provided, download all of them concurrently in parallel to minimize latency!
     if (imageUrls && imageUrls.length > 0) {
-      const downloadPromises = imageUrls.map((url) => downloadAttachmentAsBase64(url));
+      const refreshedUrls = await refreshDiscordCdnUrls(imageUrls);
+      const downloadPromises = refreshedUrls.map((url) => downloadAttachmentAsBase64(url));
       const downloadedMedia = await Promise.all(downloadPromises);
 
       for (const mediaData of downloadedMedia) {
