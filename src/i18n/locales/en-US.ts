@@ -226,8 +226,8 @@ You must respond in strict JSON format matching this exact schema:
   // ── Report command ephemeral replies ──────────────────────────────────
   reportCommandName: "Report to NoCrypto",
   reportCooldownActive: "⏱️ **Server Cooldown Active:** To protect API quotas, manual scam reporting is limited to once per hour for regular members. Try again in **%s minute%s**.\n*(Server Administrators and Moderators bypass this cooldown)*",
-  reportScamDetected: "⚠️ **Scam Detected!**\nThe message from **%s** was flagged as a scam with a **%s%%** scam probability and has been automatically removed.%s\n\n**Reason:** *%s*",
+  reportScamDetected: "⚠️ **Scam Detected!**\nThe message from **%s** was flagged as a scam with a **%s%** scam probability and has been automatically removed.%s\n\n**Reason:** *%s*",
   reportSweepSuffix: "\n\n🧹 **Retroactive Threat Sweep:** Successfully scanned active server channels and purged **%s** other copies of this scam!",
-  reportSafeResult: "✅ **No Scam Detected**\nWe analyzed the reported message and it appears to be safe.\n\n**Scam Probability:** **%s%%**.\n**Analysis Reason:** *%s*",
+  reportSafeResult: "✅ **No Scam Detected**\nWe analyzed the reported message and it appears to be safe.\n\n**Scam Probability:** **%s%**.\n**Analysis Reason:** *%s*",
   reportError: "❌ **Scan Failed:** An error occurred while processing the report: %s",
 };
