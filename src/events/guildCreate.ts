@@ -108,7 +108,12 @@ export async function onGuildCreate(guild: Guild) {
        if (checkResult.hasAdmin) msg += "\n\n" + L.onboardCheckHasAdminTip;
        onboardEmbed.addFields({ name: L.onboardCheckTitle, value: msg });
     } else if (checkResult.autoFixed) {
-       const visibleFixed = checkResult.fixedChannels.filter(c => !c.isHidden).map(c => `• <#${c.id}>`);
+       const allVisibleFixed = checkResult.fixedChannels.filter(c => !c.isHidden);
+       const visibleFixed = allVisibleFixed.slice(0, 10).map(c => `• <#${c.id}>`);
+       const remainingFixed = allVisibleFixed.length - visibleFixed.length;
+       if (remainingFixed > 0) {
+         visibleFixed.push(`• ${t(L.onboardCheckAndMoreChannels, remainingFixed)}`);
+       }
        const hiddenFixedCount = checkResult.fixedChannels.filter(c => c.isHidden).length;
        if (hiddenFixedCount > 0) visibleFixed.push(`• ${hiddenFixedCount} ${L.onboardCheckHiddenChannels}`);
        let msg = t(L.onboardCheckMissingFixedAdmin, visibleFixed.join("\n"));
@@ -121,7 +126,12 @@ export async function onGuildCreate(guild: Guild) {
        }
        
        if (checkResult.missingChannels.length > 0) {
-         const visibleMissing = checkResult.missingChannels.filter(c => !c.isHidden).map(m => `• <#${m.id}>: ${m.missing.map(p => translatePermission(p, L)).join(", ")}`);
+         const allVisibleMissing = checkResult.missingChannels.filter(c => !c.isHidden);
+         const visibleMissing = allVisibleMissing.slice(0, 10).map(m => `• <#${m.id}>: ${m.missing.map(p => translatePermission(p, L)).join(", ")}`);
+         const remainingMissing = allVisibleMissing.length - visibleMissing.length;
+         if (remainingMissing > 0) {
+           visibleMissing.push(`• ${t(L.onboardCheckAndMoreChannels, remainingMissing)}`);
+         }
          const hiddenMissingCount = checkResult.missingChannels.filter(c => c.isHidden).length;
          if (hiddenMissingCount > 0) visibleMissing.push(`• ${hiddenMissingCount} ${L.onboardCheckHiddenChannels}`);
          onboardEmbed.addFields({ name: L.onboardCheckPartialTitle, value: t(L.onboardCheckPartialDesc, visibleMissing.join("\n")) });
@@ -136,7 +146,12 @@ export async function onGuildCreate(guild: Guild) {
          onboardEmbed.addFields({ name: L.onboardCheckGlobalTitle, value: t(L.onboardCheckMissingGlobal, globalList) });
        }
        if (checkResult.missingChannels.length > 0) {
-         const visibleMissing = checkResult.missingChannels.filter(c => !c.isHidden).map(m => `• <#${m.id}>: ${m.missing.map(p => translatePermission(p, L)).join(", ")}`);
+         const allVisibleMissing = checkResult.missingChannels.filter(c => !c.isHidden);
+         const visibleMissing = allVisibleMissing.slice(0, 10).map(m => `• <#${m.id}>: ${m.missing.map(p => translatePermission(p, L)).join(", ")}`);
+         const remainingMissing = allVisibleMissing.length - visibleMissing.length;
+         if (remainingMissing > 0) {
+           visibleMissing.push(`• ${t(L.onboardCheckAndMoreChannels, remainingMissing)}`);
+         }
          const hiddenMissingCount = checkResult.missingChannels.filter(c => c.isHidden).length;
          if (hiddenMissingCount > 0) visibleMissing.push(`• ${hiddenMissingCount} ${L.onboardCheckHiddenChannels}`);
          onboardEmbed.addFields({ name: L.onboardCheckTitle, value: t(L.onboardCheckMissingReport, visibleMissing.join("\n")) + missingTip });

@@ -128,6 +128,7 @@ export interface LocaleStrings {
   onboardCheckPartialDesc: string; // %s = missingList
   onboardCheckFixGlobalTip: string;
   onboardCheckHiddenChannels: string; // e.g. "Hidden channels"
+  onboardCheckAndMoreChannels: string; // %s = count, e.g. "...and %s more channels"
 
   // ── Permission Names ──────────────────────────────────────────────────
   permTimeoutMembers: string;

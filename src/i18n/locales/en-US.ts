@@ -159,6 +159,7 @@ You must respond in strict JSON format matching this exact schema:
   onboardCheckPartialDesc: "Could not auto-configure the following channels:\n%s",
   onboardCheckFixGlobalTip: "⚠️ Please fix the global permissions in Server Settings -> Roles.",
   onboardCheckHiddenChannels: "Hidden channels",
+  onboardCheckAndMoreChannels: "...and %s more channels",
 
   // ── Permission Names ──────────────────────────────────────────────────
   permTimeoutMembers: "Timeout Members",

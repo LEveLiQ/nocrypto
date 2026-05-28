@@ -6,7 +6,7 @@ import {
 } from "discord.js";
 import { guild_config } from "../utils/database";
 import { logger } from "../utils/logger";
-import { getLocale, t, LocaleStrings } from "../i18n";
+import { getLocale, t, LocaleStrings, resolveLocaleKey } from "../i18n";
 import { diagnoseAndConfigurePermissions } from "../utils/permissions";
 
 function translatePermission(perm: string, L: LocaleStrings): string {
@@ -44,6 +44,7 @@ export async function handleOnboardingCommand(interaction: ChatInputCommandInter
 
   const config = guild_config.getConfig(guildId);
   const L = getLocale(config.language, interaction.guildLocale, interaction.locale);
+  const localeKey = resolveLocaleKey(config.language, interaction.guildLocale, interaction.locale);
 
   await interaction.deferReply({ flags: ["Ephemeral"] });
 
@@ -61,7 +62,12 @@ export async function handleOnboardingCommand(interaction: ChatInputCommandInter
     } else if (result.autoFixed) {
       embed.setColor(0x5865f2); // Blurple
       
-      const fixedList = result.fixedChannels.map(c => `• <#${c.id}>`).join("\n");
+      const visibleFixed = result.fixedChannels.slice(0, 10).map(c => `• <#${c.id}>`);
+      const remainingFixed = result.fixedChannels.length - visibleFixed.length;
+      if (remainingFixed > 0) {
+        visibleFixed.push(`• ${t(L.onboardCheckAndMoreChannels, remainingFixed)}`);
+      }
+      const fixedList = visibleFixed.join("\n");
       let desc = t(L.onboardCheckMissingFixedAdmin, fixedList);
       if (result.hasAdmin && result.missingGlobal.length === 0) desc += "\n\n" + L.onboardCheckHasAdminTip;
       embed.setDescription(desc);
@@ -73,7 +79,12 @@ export async function handleOnboardingCommand(interaction: ChatInputCommandInter
 
       if (result.missingChannels.length > 0) {
         // Some failed
-        const missingList = result.missingChannels.map(m => `• <#${m.id}>: ${m.missing.map(p => translatePermission(p, L)).join(", ")}`).join("\n");
+        const visibleMissing = result.missingChannels.slice(0, 10).map(m => `• <#${m.id}>: ${m.missing.map(p => translatePermission(p, L)).join(", ")}`);
+        const remainingMissing = result.missingChannels.length - visibleMissing.length;
+        if (remainingMissing > 0) {
+          visibleMissing.push(`• ${t(L.onboardCheckAndMoreChannels, remainingMissing)}`);
+        }
+        const missingList = visibleMissing.join("\n");
         embed.addFields({
           name: L.onboardCheckPartialTitle,
           value: t(L.onboardCheckPartialDesc, missingList)
@@ -90,7 +101,12 @@ export async function handleOnboardingCommand(interaction: ChatInputCommandInter
       }
       
       if (result.missingChannels.length > 0) {
-        const missingList = result.missingChannels.map(m => `• <#${m.id}>: ${m.missing.map(p => translatePermission(p, L)).join(", ")}`).join("\n");
+        const visibleMissing = result.missingChannels.slice(0, 10).map(m => `• <#${m.id}>: ${m.missing.map(p => translatePermission(p, L)).join(", ")}`);
+        const remainingMissing = result.missingChannels.length - visibleMissing.length;
+        if (remainingMissing > 0) {
+          visibleMissing.push(`• ${t(L.onboardCheckAndMoreChannels, remainingMissing)}`);
+        }
+        const missingList = visibleMissing.join("\n");
         const desc = t(L.onboardCheckMissingReport, missingList) + missingTip;
         embed.setDescription(desc);
       } else {

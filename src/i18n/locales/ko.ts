@@ -164,6 +164,7 @@ export const ko: LocaleStrings = {
   onboardCheckPartialDesc: "다음 채널의 권한을 자동으로 설정하지 못했습니다:\n%s",
   onboardCheckFixGlobalTip: "⚠️ 서버 설정 -> 역할에서 글로벌 권한을 수정해 주세요.",
   onboardCheckHiddenChannels: "비공개 채널",
+  onboardCheckAndMoreChannels: "...외 %s개 채널",
 
   // ── Permission Names ──────────────────────────────────────────────────
   permTimeoutMembers: "멤버 타임아웃",
